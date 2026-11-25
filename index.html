@@ -169,80 +169,69 @@
     <!-- Top Navigation / Header -->
     <header class="no-print bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5">
-            <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
-                <!-- Brand & Title -->
-                <div class="flex items-center gap-3">
-                    <div class="bg-brand-600 text-white p-2.5 rounded-xl shadow-sm">
-                        <i data-lucide="boxes" class="w-6 h-6"></i>
-                    </div>
-                    <div>
-                        <h1 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">Quản Lý Xuất - Nhập - Tồn Kho</h1>
-                        <p id="header-company-subtitle" class="text-xs text-slate-500">Hệ thống phân tích tồn kho, biểu mẫu in & báo cáo Excel tự động</p>
-                    </div>
-                </div>
-
-                <!-- Action Toolbar -->
-                <div class="flex flex-wrap items-center gap-2">
-                    <!-- Company Info Settings -->
-                    <button onclick="openCompanyModal()" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-sky-700 bg-sky-50 border border-sky-200 rounded-xl hover:bg-sky-100 active:bg-sky-200 transition shadow-sm" title="Cấu hình Tên đơn vị, MST, Địa chỉ & Kỳ báo cáo">
-                        <i data-lucide="building-2" class="w-4 h-4"></i>
-                        <span>Thông tin đơn vị</span>
-                    </button>
-
-                    <!-- Download Template -->
-                    <button onclick="downloadSampleExcel()" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 active:bg-slate-100 transition shadow-sm" title="Tải file Excel mẫu chuẩn">
-                        <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-600"></i>
-                        <span>Tải file mẫu</span>
-                    </button>
-
-                    <!-- Import Excel -->
-                    <button type="button" onclick="openImportModal()" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl hover:bg-emerald-100 active:bg-emerald-200 transition shadow-sm">
-                        <i data-lucide="upload" class="w-4 h-4"></i>
-                        <span>Nhập từ Excel</span>
-                    </button>
-
-                    <!-- Export Detailed Report Excel -->
-                    <button type="button" onclick="exportDetailReportExcel()" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-cyan-700 bg-cyan-50 border border-cyan-200 rounded-xl hover:bg-cyan-100 active:bg-cyan-200 transition shadow-sm" title="Xuất file Excel chi tiết hàng hóa kèm dòng Tổng cộng">
-                        <i data-lucide="file-down" class="w-4 h-4"></i>
-                        <span>Xuất báo cáo</span>
-                    </button>
-
-                    <!-- Export Full Dashboard Excel -->
-                    <button type="button" onclick="exportDashboardExcel()" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-xl hover:bg-indigo-100 active:bg-indigo-200 transition shadow-sm" title="Xuất toàn bộ Dashboard & Bảng chi tiết ra Excel 2 Sheet">
-                        <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
-                        <span>Xuất Dashboard Excel</span>
-                    </button>
-
-                    <!-- Print Form -->
-                    <button type="button" onclick="printDashboardForm()" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 active:bg-slate-100 transition shadow-sm" title="In biểu mẫu báo cáo chuẩn A4 ngang (tự động fit toàn bộ cột)">
-                        <i data-lucide="printer" class="w-4 h-4 text-slate-600"></i>
-                        <span>In biểu mẫu A4</span>
-                    </button>
-
-                    <!-- Add New Item -->
-                    <button type="button" onclick="openItemModal()" class="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-semibold text-white bg-brand-600 rounded-xl hover:bg-brand-700 active:bg-brand-800 transition shadow-sm">
-                        <i data-lucide="plus-circle" class="w-4 h-4"></i>
-                        <span>+ Thêm mặt hàng</span>
-                    </button>
-                </div>
+    <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
+        <!-- Brand & Title -->
+        <div class="flex items-center gap-3">
+            <div class="bg-brand-600 text-white p-2.5 rounded-xl shadow-sm">
+                <i data-lucide="boxes" class="w-6 h-6"></i>
             </div>
-
-            <!-- Thanh thông tin nhanh đơn vị, MST, địa chỉ, liên hệ & kỳ báo cáo -->
-            <div id="header-company-bar" class="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
-                <div class="flex flex-wrap items-center gap-x-4 gap-y-1 min-w-0">
-                    <span><strong class="text-slate-800">Đơn vị:</strong> <span id="bar-company-name">-</span></span>
-                    <span><strong class="text-slate-800">MST:</strong> <span id="bar-company-mst">-</span></span>
-                    <span><strong class="text-slate-800">Địa chỉ:</strong> <span id="bar-company-address">-</span></span>
-                    <span><strong class="text-slate-800">Liên hệ:</strong> <span id="bar-company-contact">-</span></span>
-                </div>
-                <div class="shrink-0">
-                    <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200 font-medium">
-                        <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
-                        <span>Kỳ: <strong id="bar-company-period">-</strong></span>
-                    </span>
-                </div>
+            <div>
+                <h1 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">Quản Lý Xuất - Nhập - Tồn Kho</h1>
+                <p id="header-company-subtitle" class="text-xs text-slate-500">Hệ thống phân tích tồn kho, biểu mẫu in & báo cáo Excel tự động</p>
             </div>
         </div>
+
+        <!-- Action Toolbar -->
+        
+    </div>
+
+    <!-- Thanh thông tin nhanh đơn vị, MST, địa chỉ, liên hệ & kỳ báo cáo -->
+    <div id="header-company-bar" class="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
+        <!-- Company Info Settings -->
+        <button onclick="openCompanyModal()" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-sky-700 bg-sky-50 border border-sky-200 rounded-xl hover:bg-sky-100 active:bg-sky-200 transition shadow-sm" title="Cấu hình Tên đơn vị, MST, Địa chỉ & Kỳ báo cáo">
+            <i data-lucide="building-2" class="w-4 h-4"></i>
+            <span>Thông tin đơn vị</span>
+        </button>
+
+        <!-- Download Template -->
+        <button onclick="downloadSampleExcel()" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 active:bg-slate-100 transition shadow-sm" title="Tải file Excel mẫu chuẩn">
+            <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-600"></i>
+            <span>Tải file mẫu</span>
+        </button>
+
+        <!-- Import Excel -->
+        <button type="button" onclick="openImportModal()" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl hover:bg-emerald-100 active:bg-emerald-200 transition shadow-sm">
+            <i data-lucide="upload" class="w-4 h-4"></i>
+            <span>Nhập từ Excel</span>
+        </button>
+
+
+    
+        <!-- Export Detailed Report Excel -->
+        <button type="button" onclick="exportDetailReportExcel()" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-cyan-700 bg-cyan-50 border border-cyan-200 rounded-xl hover:bg-cyan-100 active:bg-cyan-200 transition shadow-sm" title="Xuất file Excel chi tiết hàng hóa kèm dòng Tổng cộng">
+            <i data-lucide="file-down" class="w-4 h-4"></i>
+            <span>Xuất báo cáo</span>
+        </button>
+
+        <!-- Export Full Dashboard Excel -->
+        <button type="button" onclick="exportDashboardExcel()" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-xl hover:bg-indigo-100 active:bg-indigo-200 transition shadow-sm" title="Xuất toàn bộ Dashboard & Bảng chi tiết ra Excel 2 Sheet">
+            <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+            <span>Xuất Dashboard Excel</span>
+        </button>
+
+        <!-- Print Form -->
+        <button type="button" onclick="printDashboardForm()" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 active:bg-slate-100 transition shadow-sm" title="In biểu mẫu báo cáo chuẩn A4 ngang (tự động fit toàn bộ cột)">
+            <i data-lucide="printer" class="w-4 h-4 text-slate-600"></i>
+            <span>In biểu mẫu A4</span>
+        </button>
+
+        <!-- Add New Item -->
+        <button type="button" onclick="openItemModal()" class="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-semibold text-white bg-brand-600 rounded-xl hover:bg-brand-700 active:bg-brand-800 transition shadow-sm">
+            <i data-lucide="plus-circle" class="w-4 h-4"></i>
+            <span>+ Thêm mặt hàng</span>
+        </button>
+    </div>
+</div>
     </header>
 
     <!-- Main Content -->
