@@ -1,0 +1,2777 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Tổng Hợp Xuất - Nhập - Tồn Kho</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Be Vietnam Pro & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- SheetJS (XLSX) for Excel Import/Export -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- Chart.js for Visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Be Vietnam Pro"', 'Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            900: '#1e3a8a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        html, body {
+            max-width: 100%;
+            overflow-x: hidden;
+        }
+
+        /* Bảng chi tiết vừa khít khung nhìn, không cần cuộn ngang */
+        .table-wrap {
+            width: 100%;
+            max-width: 100%;
+            overflow-x: hidden;
+        }
+
+        .chart-stage {
+            position: relative;
+            width: 100%;
+            height: 340px;
+            min-height: 340px;
+            max-height: 340px;
+            overflow: hidden;
+        }
+
+        .chart-stage canvas {
+            display: block !important;
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        table.inventory-table {
+            table-layout: fixed;
+            width: 100%;
+            max-width: 100%;
+            border-collapse: collapse;
+        }
+
+        table.inventory-table th,
+        table.inventory-table td {
+            white-space: normal;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+        }
+
+        /* CSS tối ưu cho chế độ In biểu mẫu (A4 Landscape) không cắt dữ liệu bên phải */
+        @media print {
+            @page {
+                size: A4 landscape;
+                margin: 8mm;
+            }
+            html,
+            body,
+            main,
+            section,
+            .table-wrap,
+            .card,
+            canvas {
+                overflow: visible !important;
+                overflow-x: visible !important;
+                overflow-y: visible !important;
+                max-width: 100% !important;
+                width: 100% !important;
+                height: auto !important;
+            }
+            body {
+                background-color: #ffffff !important;
+                color: #0f172a !important;
+                font-size: 9px !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .print-only {
+                display: block !important;
+            }
+            header, footer {
+                display: none !important;
+            }
+            main {
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            .print-shadow-none {
+                box-shadow: none !important;
+            }
+            .print-break-inside-avoid {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+            .print-chart-img {
+                display: block !important;
+                max-height: 250px !important;
+                height: 250px !important;
+                max-width: 100% !important;
+                width: 100% !important;
+                object-fit: contain;
+            }
+            .chart-stage {
+                height: 250px !important;
+                min-height: 250px !important;
+                max-height: 250px !important;
+            }
+            .print-canvas-hide {
+                display: none !important;
+            }
+            table.inventory-table {
+                table-layout: fixed !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                font-size: 8px !important;
+                border-collapse: collapse !important;
+            }
+            table.inventory-table th,
+            table.inventory-table td {
+                border: 1px solid #cbd5e1 !important;
+                padding: 2px 3px !important;
+                white-space: normal !important;
+                word-break: break-word !important;
+                overflow-wrap: anywhere !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="no-print fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none"></div>
+
+    <!-- Top Navigation / Header -->
+    <header class="no-print bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5">
+            <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
+                <!-- Brand & Title -->
+                <div class="flex items-center gap-3">
+                    <div class="bg-brand-600 text-white p-2.5 rounded-xl shadow-sm">
+                        <i data-lucide="boxes" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">Quản Lý Xuất - Nhập - Tồn Kho</h1>
+                        <p id="header-company-subtitle" class="text-xs text-slate-500">Hệ thống phân tích tồn kho, biểu mẫu in & báo cáo Excel tự động</p>
+                    </div>
+                </div>
+
+                <!-- Action Toolbar -->
+                <div class="flex flex-wrap items-center gap-2">
+                    <!-- Company Info Settings -->
+                    <button onclick="openCompanyModal()" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-sky-700 bg-sky-50 border border-sky-200 rounded-xl hover:bg-sky-100 active:bg-sky-200 transition shadow-sm" title="Cấu hình Tên đơn vị, MST, Địa chỉ & Kỳ báo cáo">
+                        <i data-lucide="building-2" class="w-4 h-4"></i>
+                        <span>Thông tin đơn vị</span>
+                    </button>
+
+                    <!-- Download Template -->
+                    <button onclick="downloadSampleExcel()" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 active:bg-slate-100 transition shadow-sm" title="Tải file Excel mẫu chuẩn">
+                        <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-600"></i>
+                        <span>Tải file mẫu</span>
+                    </button>
+
+                    <!-- Import Excel -->
+                    <button type="button" onclick="openImportModal()" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl hover:bg-emerald-100 active:bg-emerald-200 transition shadow-sm">
+                        <i data-lucide="upload" class="w-4 h-4"></i>
+                        <span>Nhập từ Excel</span>
+                    </button>
+
+                    <!-- Export Detailed Report Excel -->
+                    <button type="button" onclick="exportDetailReportExcel()" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-cyan-700 bg-cyan-50 border border-cyan-200 rounded-xl hover:bg-cyan-100 active:bg-cyan-200 transition shadow-sm" title="Xuất file Excel chi tiết hàng hóa kèm dòng Tổng cộng">
+                        <i data-lucide="file-down" class="w-4 h-4"></i>
+                        <span>Xuất báo cáo</span>
+                    </button>
+
+                    <!-- Export Full Dashboard Excel -->
+                    <button type="button" onclick="exportDashboardExcel()" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-xl hover:bg-indigo-100 active:bg-indigo-200 transition shadow-sm" title="Xuất toàn bộ Dashboard & Bảng chi tiết ra Excel 2 Sheet">
+                        <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+                        <span>Xuất Dashboard Excel</span>
+                    </button>
+
+                    <!-- Print Form -->
+                    <button type="button" onclick="printDashboardForm()" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 active:bg-slate-100 transition shadow-sm" title="In biểu mẫu báo cáo chuẩn A4 ngang (tự động fit toàn bộ cột)">
+                        <i data-lucide="printer" class="w-4 h-4 text-slate-600"></i>
+                        <span>In biểu mẫu A4</span>
+                    </button>
+
+                    <!-- Add New Item -->
+                    <button type="button" onclick="openItemModal()" class="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-semibold text-white bg-brand-600 rounded-xl hover:bg-brand-700 active:bg-brand-800 transition shadow-sm">
+                        <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                        <span>+ Thêm mặt hàng</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Thanh thông tin nhanh đơn vị, MST, địa chỉ, liên hệ & kỳ báo cáo -->
+            <div id="header-company-bar" class="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
+                <div class="flex flex-wrap items-center gap-x-4 gap-y-1 min-w-0">
+                    <span><strong class="text-slate-800">Đơn vị:</strong> <span id="bar-company-name">-</span></span>
+                    <span><strong class="text-slate-800">MST:</strong> <span id="bar-company-mst">-</span></span>
+                    <span><strong class="text-slate-800">Địa chỉ:</strong> <span id="bar-company-address">-</span></span>
+                    <span><strong class="text-slate-800">Liên hệ:</strong> <span id="bar-company-contact">-</span></span>
+                </div>
+                <div class="shrink-0">
+                    <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200 font-medium">
+                        <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
+                        <span>Kỳ: <strong id="bar-company-period">-</strong></span>
+                    </span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <!-- PRINT ONLY: TIÊU ĐỀ BIỂU MẪU CHUẨN HÀNH CHÍNH KẾ TOÁN -->
+        <section class="hidden print-only mb-4 pb-3 border-b-2 border-slate-800">
+            <div class="flex justify-between items-start text-xs mb-3 gap-6">
+                <div class="space-y-0.5 max-w-[65%]">
+                    <p id="print-company-name" class="font-bold uppercase text-slate-900 text-sm">ĐƠN VỊ: CÔNG TY CỔ PHẦN THƯƠNG MẠI & DỊCH VỤ</p>
+                    <p id="print-company-mst" class="font-semibold text-slate-800">Mã số thuế: 0312345678</p>
+                    <p id="print-company-address" class="text-slate-700">Địa chỉ: Quận 1, TP. Hồ Chí Minh</p>
+                    <p id="print-company-contact" class="text-slate-600">Điện thoại / Email: 028 3822 9999 - kho@congty.vn</p>
+                </div>
+                <div class="text-right shrink-0">
+                    <p class="font-bold text-slate-800">Mẫu số: S10-DN</p>
+                    <p class="text-slate-500 italic">(Ban hành kèm theo chế độ kế toán doanh nghiệp)</p>
+                </div>
+            </div>
+            <div class="text-center">
+                <h1 class="text-xl font-bold uppercase tracking-wide text-slate-900">BÁO CÁO TỔNG HỢP XUẤT - NHẬP - TỒN KHO</h1>
+                <p id="print-report-period" class="text-xs font-semibold text-slate-800 mt-1">Kỳ báo cáo: Tháng 11/2026</p>
+                <p id="print-report-date" class="text-[11px] text-slate-500 mt-0.5 italic">Thời điểm lập biểu: ...</p>
+            </div>
+        </section>
+
+        <!-- KPI Summary Cards -->
+        <section class="card grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 print-break-inside-avoid">
+            <!-- Card 1: Tồn đầu kỳ -->
+            <div class="card bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm print-shadow-none hover:shadow-md transition">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Giá trị Tồn đầu</span>
+                    <div class="no-print p-2 bg-slate-100 text-slate-600 rounded-xl">
+                        <i data-lucide="archive" class="w-4 h-4"></i>
+                    </div>
+                </div>
+                <div id="kpi-opening-val" class="text-lg sm:text-xl font-bold text-slate-900 truncate">0 ₫</div>
+                <div id="kpi-opening-qty" class="text-xs text-slate-500 mt-1">Tổng SL: 0</div>
+            </div>
+
+            <!-- Card 2: Nhập trong kỳ -->
+            <div class="card bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm print-shadow-none hover:shadow-md transition">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-emerald-600">Giá trị Nhập kho</span>
+                    <div class="no-print p-2 bg-emerald-50 text-emerald-600 rounded-xl">
+                        <i data-lucide="arrow-down-left" class="w-4 h-4"></i>
+                    </div>
+                </div>
+                <div id="kpi-import-val" class="text-lg sm:text-xl font-bold text-emerald-700 truncate">0 ₫</div>
+                <div id="kpi-import-qty" class="text-xs text-slate-500 mt-1">Tổng SL nhập: 0</div>
+            </div>
+
+            <!-- Card 3: Xuất trong kỳ -->
+            <div class="card bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm print-shadow-none hover:shadow-md transition">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-amber-600">Giá trị Xuất kho</span>
+                    <div class="no-print p-2 bg-amber-50 text-amber-600 rounded-xl">
+                        <i data-lucide="arrow-up-right" class="w-4 h-4"></i>
+                    </div>
+                </div>
+                <div id="kpi-export-val" class="text-lg sm:text-xl font-bold text-amber-700 truncate">0 ₫</div>
+                <div id="kpi-export-qty" class="text-xs text-slate-500 mt-1">Tổng SL xuất: 0</div>
+            </div>
+
+            <!-- Card 4: Tồn cuối kỳ -->
+            <div class="card bg-gradient-to-br from-brand-600 to-brand-700 text-white rounded-2xl p-4 shadow-md print-shadow-none">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-brand-100">Giá trị Tồn cuối</span>
+                    <div class="no-print p-2 bg-white/15 text-white rounded-xl">
+                        <i data-lucide="wallet" class="w-4 h-4"></i>
+                    </div>
+                </div>
+                <div id="kpi-closing-val" class="text-lg sm:text-xl font-bold truncate">0 ₫</div>
+                <div id="kpi-closing-qty" class="text-xs text-brand-100 mt-1">Tổng SL tồn: 0</div>
+            </div>
+
+            <!-- Card 5: Tổng mặt hàng & Cảnh báo -->
+            <div class="card bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm print-shadow-none hover:shadow-md transition sm:col-span-2 lg:col-span-1">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Danh mục SKU</span>
+                    <div class="no-print p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                        <i data-lucide="layers" class="w-4 h-4"></i>
+                    </div>
+                </div>
+                <div class="flex items-baseline gap-2">
+                    <span id="kpi-total-items" class="text-xl font-bold text-slate-900">0</span>
+                    <span class="text-xs text-slate-500">mặt hàng</span>
+                </div>
+                <div id="kpi-alert-text" class="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span> Kho ổn định
+                </div>
+            </div>
+        </section>
+
+        <!-- Charts Section -->
+        <section class="card grid grid-cols-1 lg:grid-cols-12 gap-6 print-break-inside-avoid">
+            <!-- Bar Chart (7 cols) -->
+            <div class="card lg:col-span-7 bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm print-shadow-none flex flex-col">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                    <div>
+                        <h2 class="text-base font-bold text-slate-900">Biểu Đồ So Sánh Nhập - Xuất - Tồn</h2>
+                        <p id="bar-chart-subtitle" class="text-xs text-slate-500">So sánh Tồn đầu - Nhập - Xuất - Tồn cuối theo mặt hàng (Top 10 giá trị cao nhất)</p>
+                    </div>
+                    <!-- Toggle Scope & Metric Mode -->
+                    <div class="no-print flex flex-wrap items-center gap-1.5 self-start sm:self-auto">
+                        <div class="inline-flex rounded-xl bg-slate-100 p-1">
+                            <button type="button" id="btn-bar-scope-item" onclick="setBarChartScope('item')" class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-white text-brand-600 shadow-sm transition">
+                                Theo Mặt hàng
+                            </button>
+                            <button type="button" id="btn-bar-scope-group" onclick="setBarChartScope('group')" class="px-2.5 py-1 text-xs font-medium rounded-lg text-slate-600 hover:text-slate-900 transition">
+                                Theo Nhóm hàng
+                            </button>
+                        </div>
+                        <div class="inline-flex rounded-xl bg-slate-100 p-1">
+                            <button type="button" id="btn-bar-value" onclick="setBarChartMode('value')" class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-white text-brand-600 shadow-sm transition">
+                                Thành tiền (₫)
+                            </button>
+                            <button type="button" id="btn-bar-qty" onclick="setBarChartMode('qty')" class="px-2.5 py-1 text-xs font-medium rounded-lg text-slate-600 hover:text-slate-900 transition">
+                                Số lượng
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="chart-stage">
+                    <canvas id="barChart" class="print-canvas-hide"></canvas>
+                    <img id="barChartPrintImg" class="hidden print-chart-img" alt="Biểu đồ cột So sánh Nhập - Xuất - Tồn">
+                </div>
+            </div>
+
+            <!-- Doughnut / Pie Chart (5 cols) -->
+            <div class="card lg:col-span-5 bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm print-shadow-none flex flex-col">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                    <div>
+                        <h2 class="text-base font-bold text-slate-900">Biểu Đồ Cơ Cấu Giá Trị Tồn Cuối</h2>
+                        <p id="pie-chart-subtitle" class="text-xs text-slate-500">Tỷ trọng (%) và giá trị (₫) tồn cuối theo nhóm hàng</p>
+                    </div>
+                    <!-- Toggle Group Mode -->
+                    <div class="no-print inline-flex rounded-xl bg-slate-100 p-1 self-start sm:self-auto shrink-0">
+                        <button type="button" id="btn-pie-group" onclick="setPieChartMode('group')" class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-white text-brand-600 shadow-sm transition">
+                            Nhóm hàng
+                        </button>
+                        <button type="button" id="btn-pie-item" onclick="setPieChartMode('item')" class="px-2.5 py-1 text-xs font-medium rounded-lg text-slate-600 hover:text-slate-900 transition">
+                            Mặt hàng
+                        </button>
+                    </div>
+                </div>
+                <div class="chart-stage flex items-center justify-center">
+                    <canvas id="pieChart" class="print-canvas-hide"></canvas>
+                    <img id="pieChartPrintImg" class="hidden print-chart-img" alt="Biểu đồ tròn Cơ cấu giá trị tồn cuối">
+                </div>
+            </div>
+        </section>
+
+        <!-- Inventory Data Table Section -->
+        <section class="card bg-white rounded-2xl border border-slate-200/80 shadow-sm print-shadow-none overflow-hidden">
+            <!-- Table Header & Filters -->
+            <div class="p-4 sm:p-5 border-b border-slate-200 space-y-4">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                        <h2 class="text-base font-bold text-slate-900">Bảng Chi Tiết Số Lượng & Thành Tiền Xuất - Nhập - Tồn</h2>
+                        <p class="text-xs text-slate-500">Hiển thị trọn vẹn 100% chiều rộng màn hình và trang in A4 ngang — không cần cuộn ngang, không mất cột bên phải.</p>
+                    </div>
+                    <div class="no-print flex flex-wrap items-center gap-2">
+                        <button type="button" onclick="printDashboardForm()" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-brand-700 bg-brand-50 border border-brand-200 hover:bg-brand-100 rounded-xl transition" title="Mở hộp thoại in / xem trước bản in A4 ngang">
+                            <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                            <span>Xem trước & In A4</span>
+                        </button>
+                        <button type="button" onclick="resetToSampleData()" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition" title="Khôi phục bộ dữ liệu mẫu ban đầu">
+                            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                            <span>Dữ liệu mẫu</span>
+                        </button>
+                        <button type="button" onclick="openClearConfirmModal()" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-xl transition" title="Xóa toàn bộ dữ liệu hiện tại">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            <span>Xóa tất cả</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="no-print bg-slate-50 border border-slate-200/90 rounded-xl px-3.5 py-2 text-[11px] text-slate-600">
+                    <span><strong>Mẹo in chuẩn A4 không mất cột:</strong> Khi nhấn <em>In biểu mẫu A4</em>, hãy chọn khổ giấy <strong>A4</strong>, hướng <strong>Ngang (Landscape)</strong>, lề <strong>Mặc định / Nhỏ</strong> và bật <strong>Đồ họa nền (Background graphics)</strong> để giữ màu biểu đồ & KPI.</span>
+                </div>
+
+                <!-- Search & Filter Bar -->
+                <div class="no-print grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3">
+                    <!-- Search input -->
+                    <div class="lg:col-span-5 relative">
+                        <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+                        <input type="text" id="search-input" oninput="applyFilters()" placeholder="Tìm theo mã hàng hoặc tên hàng hóa..." class="w-full pl-10 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition">
+                    </div>
+
+                    <!-- Filter by Category -->
+                    <div class="lg:col-span-4">
+                        <select id="filter-category" onchange="applyFilters()" class="w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition">
+                            <option value="ALL">Tất cả nhóm hàng</option>
+                        </select>
+                    </div>
+
+                    <!-- Filter by Stock Status -->
+                    <div class="lg:col-span-3">
+                        <select id="filter-status" onchange="applyFilters()" class="w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition">
+                            <option value="ALL">Tất cả trạng thái tồn</option>
+                            <option value="IN_STOCK">Còn hàng (&gt; Tồn tối thiểu)</option>
+                            <option value="LOW_STOCK">Sắp hết (&le; Tồn tối thiểu)</option>
+                            <option value="OUT_OR_NEGATIVE">Hết hàng / Âm kho (&le; 0)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Full-Width Table Wrapper (No Horizontal Scroll) -->
+            <div class="table-wrap">
+                <table class="inventory-table text-left border-collapse">
+                    <colgroup>
+                        <col style="width: 3.5%;">
+                        <col style="width: 6.5%;">
+                        <col style="width: 15.5%;">
+                        <col style="width: 4.5%;">
+                        <col style="width: 8%;">
+                        <col style="width: 5.5%;">
+                        <col style="width: 8.5%;">
+                        <col style="width: 5.5%;">
+                        <col style="width: 8.5%;">
+                        <col style="width: 5.5%;">
+                        <col style="width: 8.5%;">
+                        <col style="width: 5.5%;">
+                        <col style="width: 9%;">
+                        <col style="width: 5%;">
+                    </colgroup>
+                    <thead>
+                        <!-- Group Header Row -->
+                        <tr class="bg-slate-100 border-b border-slate-200 text-[10px] font-bold text-slate-700 uppercase tracking-tight">
+                            <th rowspan="2" class="py-2 px-1 text-center border-r border-slate-200">STT</th>
+                            <th rowspan="2" class="py-2 px-1.5 border-r border-slate-200">Mã hàng</th>
+                            <th rowspan="2" class="py-2 px-1.5 border-r border-slate-200">Tên hàng hóa</th>
+                            <th rowspan="2" class="py-2 px-1 text-center border-r border-slate-200">ĐVT</th>
+                            <th rowspan="2" class="py-2 px-1.5 border-r border-slate-200">Nhóm hàng</th>
+                            <th colspan="2" class="py-1.5 px-1 text-center bg-slate-200/60 text-slate-800 border-r border-slate-200">Tồn đầu kỳ</th>
+                            <th colspan="2" class="py-1.5 px-1 text-center bg-emerald-100/70 text-emerald-800 border-r border-slate-200">Nhập trong kỳ</th>
+                            <th colspan="2" class="py-1.5 px-1 text-center bg-amber-100/70 text-amber-800 border-r border-slate-200">Xuất trong kỳ</th>
+                            <th colspan="2" class="py-1.5 px-1 text-center bg-indigo-100/70 text-indigo-900 border-r border-slate-200">Tồn cuối kỳ</th>
+                            <th rowspan="2" class="py-2 px-1 text-center">Tồn tối thiểu</th>
+                        </tr>
+                        <!-- Sub Header Row -->
+                        <tr class="bg-slate-50 border-b border-slate-200 text-[10px] font-semibold text-slate-600 uppercase">
+                            <th class="py-1.5 px-1 text-right bg-slate-100/50">SL</th>
+                            <th class="py-1.5 px-1.5 text-right bg-slate-100/50 border-r border-slate-200">Thành tiền</th>
+                            <th class="py-1.5 px-1 text-right text-emerald-700 bg-emerald-50/40">SL</th>
+                            <th class="py-1.5 px-1.5 text-right text-emerald-700 bg-emerald-50/40 border-r border-slate-200">Thành tiền</th>
+                            <th class="py-1.5 px-1 text-right text-amber-700 bg-amber-50/40">SL</th>
+                            <th class="py-1.5 px-1.5 text-right text-amber-700 bg-amber-50/40 border-r border-slate-200">Thành tiền</th>
+                            <th class="py-1.5 px-1 text-right text-indigo-700 bg-indigo-50/40 font-bold">SL</th>
+                            <th class="py-1.5 px-1.5 text-right text-indigo-800 bg-indigo-50/40 font-bold border-r border-slate-200">Thành tiền</th>
+                        </tr>
+                    </thead>
+                    <tbody id="inventory-tbody" class="divide-y divide-slate-100 text-[11px] sm:text-xs">
+                        <!-- Dynamic Rows Rendered Here -->
+                    </tbody>
+                    <tfoot id="inventory-tfoot" class="bg-slate-100 border-t-2 border-slate-300 font-bold text-[11px] sm:text-xs text-slate-900">
+                        <!-- Summary Footer Rendered Here -->
+                    </tfoot>
+                </table>
+            </div>
+
+            <!-- Empty State (hidden when items exist) -->
+            <div id="empty-state" class="hidden py-12 px-4 text-center no-print">
+                <div class="mx-auto w-14 h-14 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mb-3">
+                    <i data-lucide="package-open" class="w-7 h-7"></i>
+                </div>
+                <h3 class="text-base font-semibold text-slate-800">Không tìm thấy dữ liệu hàng hóa</h3>
+                <p class="text-sm text-slate-500 mt-1 max-w-md mx-auto">Hãy thử thay đổi bộ lọc tìm kiếm, thêm mặt hàng mới hoặc nhập dữ liệu từ tệp Excel.</p>
+                <div class="mt-4 flex justify-center gap-2">
+                    <button onclick="openItemModal()" class="px-4 py-2 text-sm font-medium text-white bg-brand-600 rounded-xl hover:bg-brand-700 transition">
+                        + Thêm mặt hàng mới
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- PRINT ONLY: KHU VỰC CHỮ KÝ CUỐI BIỂU MẪU -->
+        <section class="hidden print-only mt-8 pt-4 print-break-inside-avoid">
+            <div class="grid grid-cols-4 gap-4 text-center text-xs">
+                <div>
+                    <p class="font-bold uppercase text-slate-900">Người lập biểu</p>
+                    <p class="text-slate-500 italic mt-0.5">(Ký, họ tên)</p>
+                    <div class="h-16"></div>
+                    <p id="print-sign-preparer" class="font-bold text-slate-900"></p>
+                </div>
+                <div>
+                    <p class="font-bold uppercase text-slate-900">Thủ kho</p>
+                    <p class="text-slate-500 italic mt-0.5">(Ký, họ tên)</p>
+                    <div class="h-16"></div>
+                    <p id="print-sign-storekeeper" class="font-bold text-slate-900"></p>
+                </div>
+                <div>
+                    <p class="font-bold uppercase text-slate-900">Kế toán trưởng</p>
+                    <p class="text-slate-500 italic mt-0.5">(Ký, họ tên)</p>
+                    <div class="h-16"></div>
+                    <p id="print-sign-accountant" class="font-bold text-slate-900"></p>
+                </div>
+                <div>
+                    <p class="font-bold uppercase text-slate-900">Giám đốc</p>
+                    <p class="text-slate-500 italic mt-0.5">(Ký, họ tên, đóng dấu)</p>
+                    <div class="h-16"></div>
+                    <p id="print-sign-director" class="font-bold text-slate-900"></p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="no-print bg-white border-t border-slate-200 py-4 mt-8">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
+            <p>Công cụ Dashboard Quản Lý Xuất - Nhập - Tồn Kho • Dữ liệu được lưu tự động trên trình duyệt.</p>
+            <p>Hỗ trợ nhập độc lập Số lượng & Thành tiền cho từng phần Tồn đầu, Nhập, Xuất, Tồn cuối.</p>
+        </div>
+    </footer>
+
+    <!-- ===================================================================== -->
+    <!-- MODAL 1: THÊM / SỬA MẶT HÀNG (4 KHỐI NHẬP LIỆU SỐ LƯỢNG & THÀNH TIỀN) -->
+    <!-- ===================================================================== -->
+    <div id="item-modal" class="no-print fixed inset-0 z-40 hidden items-center justify-center bg-slate-900/50 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full overflow-hidden border border-slate-200 my-auto">
+            <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+                <h3 id="modal-title" class="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <i data-lucide="package-plus" class="w-5 h-5 text-brand-600"></i>
+                    <span>Thêm Mặt Hàng Mới</span>
+                </h3>
+                <button onclick="closeItemModal()" class="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200/60 transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <form id="item-form" onsubmit="handleSaveItem(event)" class="p-5 sm:p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+                <input type="hidden" id="edit-item-id">
+
+                <!-- THÔNG TIN CHUNG -->
+                <div class="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80 space-y-3">
+                    <div class="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                        <i data-lucide="tag" class="w-3.5 h-3.5 text-brand-600"></i>
+                        <span>Thông tin chung mặt hàng</span>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                        <div class="sm:col-span-4">
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Mã hàng <span class="text-rose-500">*</span></label>
+                            <input type="text" id="field-code" required placeholder="VD: VT001" class="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 uppercase">
+                        </div>
+                        <div class="sm:col-span-8">
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Tên hàng hóa <span class="text-rose-500">*</span></label>
+                            <input type="text" id="field-name" required placeholder="Nhập tên đầy đủ của sản phẩm..." class="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                        <div class="sm:col-span-3">
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Đơn vị tính <span class="text-rose-500">*</span></label>
+                            <input type="text" id="field-unit" required placeholder="Cái, Hộp..." class="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+                        </div>
+                        <div class="sm:col-span-4">
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Nhóm hàng <span class="text-rose-500">*</span></label>
+                            <input type="text" id="field-category" list="category-suggestions" required placeholder="Thiết bị IT, VPP..." class="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+                            <datalist id="category-suggestions"></datalist>
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Tồn tối thiểu</label>
+                            <input type="number" id="field-min-stock" min="0" step="any" value="10" class="w-full px-2.5 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 text-right">
+                        </div>
+                        <div class="sm:col-span-3">
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Đơn giá tham chiếu (₫)</label>
+                            <input type="number" id="field-price" min="0" step="any" value="0" oninput="onReferencePriceChange()" placeholder="Tùy chọn..." class="w-full px-2.5 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 text-right font-medium">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4 KHỐI NHẬP LIỆU CHI TIẾT (TỒN ĐẦU - NHẬP - XUẤT - TỒN CUỐI) -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+
+                    <!-- KHỐI 1: TỒN ĐẦU KỲ (Xanh dương / Xám) -->
+                    <div class="bg-sky-50/60 border border-sky-200 rounded-xl p-3.5 space-y-2.5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold uppercase text-sky-800 flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full bg-sky-600"></span> 1. Tồn đầu kỳ
+                            </span>
+                            <button type="button" onclick="calcSectionByPrice('opening')" class="text-[11px] font-medium text-sky-700 hover:underline" title="Tính Thành tiền = SL × Đơn giá tham chiếu">
+                                Tính theo đơn giá
+                            </button>
+                        </div>
+                        <div class="grid grid-cols-12 gap-2">
+                            <div class="col-span-5">
+                                <label class="block text-[11px] font-medium text-slate-600 mb-1">Số lượng</label>
+                                <input type="number" id="field-opening-qty" step="any" value="0" oninput="onQtyInput('opening')" required class="w-full px-2.5 py-1.5 text-sm bg-white border border-sky-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-right">
+                            </div>
+                            <div class="col-span-7">
+                                <label class="block text-[11px] font-medium text-slate-600 mb-1">Thành tiền (₫)</label>
+                                <input type="number" id="field-opening-val" step="any" value="0" oninput="onValInput('opening')" required class="w-full px-2.5 py-1.5 text-sm bg-white border border-sky-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-right font-semibold text-sky-900">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- KHỐI 2: NHẬP TRONG KỲ (Xanh lá) -->
+                    <div class="bg-emerald-50/60 border border-emerald-200 rounded-xl p-3.5 space-y-2.5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold uppercase text-emerald-800 flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full bg-emerald-600"></span> 2. Nhập trong kỳ
+                            </span>
+                            <button type="button" onclick="calcSectionByPrice('import')" class="text-[11px] font-medium text-emerald-700 hover:underline" title="Tính Thành tiền = SL × Đơn giá tham chiếu">
+                                Tính theo đơn giá
+                            </button>
+                        </div>
+                        <div class="grid grid-cols-12 gap-2">
+                            <div class="col-span-5">
+                                <label class="block text-[11px] font-medium text-slate-600 mb-1">Số lượng</label>
+                                <input type="number" id="field-import-qty" min="0" step="any" value="0" oninput="onQtyInput('import')" required class="w-full px-2.5 py-1.5 text-sm bg-white border border-emerald-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-right">
+                            </div>
+                            <div class="col-span-7">
+                                <label class="block text-[11px] font-medium text-slate-600 mb-1">Thành tiền (₫)</label>
+                                <input type="number" id="field-import-val" min="0" step="any" value="0" oninput="onValInput('import')" required class="w-full px-2.5 py-1.5 text-sm bg-white border border-emerald-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-right font-semibold text-emerald-900">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- KHỐI 3: XUẤT TRONG KỲ (Cam / Hổ phách) -->
+                    <div class="bg-amber-50/60 border border-amber-200 rounded-xl p-3.5 space-y-2.5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold uppercase text-amber-800 flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full bg-amber-600"></span> 3. Xuất trong kỳ
+                            </span>
+                            <button type="button" onclick="calcExportByWeightedAvg()" class="text-[11px] font-medium text-amber-700 hover:underline" title="Tính theo giá bình quân gia quyền (Tồn đầu + Nhập) hoặc đơn giá tham chiếu">
+                                Tính giá BQ / Đơn giá
+                            </button>
+                        </div>
+                        <div class="grid grid-cols-12 gap-2">
+                            <div class="col-span-5">
+                                <label class="block text-[11px] font-medium text-slate-600 mb-1">Số lượng</label>
+                                <input type="number" id="field-export-qty" min="0" step="any" value="0" oninput="onQtyInput('export')" required class="w-full px-2.5 py-1.5 text-sm bg-white border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 text-right">
+                            </div>
+                            <div class="col-span-7">
+                                <label class="block text-[11px] font-medium text-slate-600 mb-1">Thành tiền (₫)</label>
+                                <input type="number" id="field-export-val" min="0" step="any" value="0" oninput="onValInput('export')" required class="w-full px-2.5 py-1.5 text-sm bg-white border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 text-right font-semibold text-amber-900">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- KHỐI 4: TỒN CUỐI KỲ (Tím / Indigo) -->
+                    <div class="bg-indigo-50/70 border border-indigo-200 rounded-xl p-3.5 space-y-2.5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold uppercase text-indigo-800 flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full bg-indigo-600"></span> 4. Tồn cuối kỳ
+                            </span>
+                            <button type="button" onclick="autoBalanceClosing(true)" class="text-[11px] font-semibold text-indigo-700 hover:underline" title="Tự động cân đối = Tồn đầu + Nhập - Xuất">
+                                Tự động cân đối
+                            </button>
+                        </div>
+                        <div class="grid grid-cols-12 gap-2">
+                            <div class="col-span-5">
+                                <label class="block text-[11px] font-medium text-slate-600 mb-1">Số lượng</label>
+                                <input type="number" id="field-closing-qty" step="any" value="0" oninput="onClosingManualEdit()" required class="w-full px-2.5 py-1.5 text-sm bg-white border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-right font-bold text-indigo-900">
+                            </div>
+                            <div class="col-span-7">
+                                <label class="block text-[11px] font-medium text-slate-600 mb-1">Thành tiền (₫)</label>
+                                <input type="number" id="field-closing-val" step="any" value="0" oninput="onClosingManualEdit()" required class="w-full px-2.5 py-1.5 text-sm bg-white border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-right font-bold text-indigo-900">
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Ghi chú trạng thái cân đối -->
+                <div id="balance-hint-box" class="text-xs text-slate-500 bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200 flex items-center justify-between">
+                    <span>Công thức chuẩn: <strong>Tồn cuối = Tồn đầu + Nhập - Xuất</strong></span>
+                    <span id="balance-status-badge" class="font-semibold text-emerald-600">✓ Đã cân đối tự động</span>
+                </div>
+
+                <div class="pt-2 flex items-center justify-end gap-2">
+                    <button type="button" onclick="closeItemModal()" class="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition">
+                        Hủy bỏ
+                    </button>
+                    <button type="submit" class="px-5 py-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-xl shadow-sm transition">
+                        Lưu mặt hàng
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- MODAL 2: NHẬP DỮ LIỆU TỪ FILE EXCEL                                   -->
+    <!-- ===================================================================== -->
+    <div id="import-modal" class="no-print fixed inset-0 z-40 hidden items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+        <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full overflow-hidden border border-slate-200">
+            <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+                <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <i data-lucide="file-up" class="w-5 h-5 text-emerald-600"></i>
+                    <span>Nhập Dữ Liệu Từ Excel</span>
+                </h3>
+                <button onclick="closeImportModal()" class="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200/60 transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-4">
+                <div class="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3.5 text-xs text-emerald-800 space-y-1.5">
+                    <p class="font-semibold">Định dạng cột chuẩn trong file Excel mẫu:</p>
+                    <p class="leading-relaxed"><code>Mã hàng</code>, <code>Tên hàng</code>, <code>Nhóm hàng</code>, <code>ĐVT</code>, <code>Tồn đầu SL</code>, <code>Tồn đầu Thành tiền</code>, <code>Nhập SL</code>, <code>Nhập Thành tiền</code>, <code>Xuất SL</code>, <code>Xuất Thành tiền</code>, <code>Tồn cuối SL</code>, <code>Tồn cuối Thành tiền</code>, <code>Tồn tối thiểu</code></p>
+                    <button type="button" onclick="downloadSampleExcel()" class="inline-flex items-center gap-1 text-emerald-700 font-semibold underline hover:text-emerald-900 pt-1">
+                        <i data-lucide="download" class="w-3.5 h-3.5"></i> Tải file Excel mẫu chuẩn tại đây
+                    </button>
+                </div>
+
+                <!-- Import Mode -->
+                <div class="space-y-2">
+                    <label class="block text-xs font-semibold text-slate-700">Chế độ nhập dữ liệu:</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="flex items-center gap-2 p-2.5 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50/40">
+                            <input type="radio" name="import-mode" value="replace" checked class="text-brand-600 focus:ring-brand-500">
+                            <div>
+                                <div class="text-xs font-semibold text-slate-800">Thay thế toàn bộ</div>
+                                <div class="text-[11px] text-slate-500">Xóa cũ, dùng dữ liệu mới</div>
+                            </div>
+                        </label>
+                        <label class="flex items-center gap-2 p-2.5 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50/40">
+                            <input type="radio" name="import-mode" value="merge" class="text-brand-600 focus:ring-brand-500">
+                            <div>
+                                <div class="text-xs font-semibold text-slate-800">Gộp thêm dữ liệu</div>
+                                <div class="text-[11px] text-slate-500">Cập nhật mã trùng & thêm mới</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Drag & Drop / File Picker -->
+                <div id="drop-zone" onclick="document.getElementById('excel-file-input').click()" class="border-2 border-dashed border-slate-300 hover:border-brand-500 rounded-2xl p-6 text-center cursor-pointer transition bg-slate-50 hover:bg-brand-50/30">
+                    <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" class="hidden" onchange="handleExcelUpload(event)">
+                    <div class="mx-auto w-12 h-12 rounded-xl bg-white shadow-sm border border-slate-200 flex items-center justify-center text-brand-600 mb-2">
+                        <i data-lucide="upload-cloud" class="w-6 h-6"></i>
+                    </div>
+                    <p class="text-sm font-semibold text-slate-800">Nhấn để chọn file hoặc kéo thả vào đây</p>
+                    <p class="text-xs text-slate-500 mt-1">Hỗ trợ định dạng .XLSX, .XLS, .CSV</p>
+                </div>
+
+                <div class="flex justify-end">
+                    <button type="button" onclick="closeImportModal()" class="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition">
+                        Đóng
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- MODAL 3: XÁC NHẬN XÓA (THAY THẾ CONFIRM/ALERT)                        -->
+    <!-- ===================================================================== -->
+    <div id="confirm-modal" class="no-print fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+        <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 border border-slate-200 space-y-4">
+            <div class="flex items-start gap-3">
+                <div class="p-2.5 rounded-xl bg-rose-100 text-rose-600 shrink-0">
+                    <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h3 id="confirm-title" class="text-base font-bold text-slate-900">Xác nhận</h3>
+                    <p id="confirm-message" class="text-sm text-slate-600 mt-1">Bạn có chắc chắn muốn thực hiện thao tác này?</p>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="closeConfirmModal()" class="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition">
+                    Hủy
+                </button>
+                <button id="confirm-action-btn" class="px-4 py-2 text-sm font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition">
+                    Xác nhận
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- MODAL 4: CẤU HÌNH THÔNG TIN ĐƠN VỊ, MST, ĐỊA CHỈ & KỲ BÁO CÁO        -->
+    <!-- ===================================================================== -->
+    <div id="company-modal" class="no-print fixed inset-0 z-40 hidden items-center justify-center bg-slate-900/50 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full overflow-hidden border border-slate-200 my-auto">
+            <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+                <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <i data-lucide="building-2" class="w-5 h-5 text-sky-600"></i>
+                    <span>Cấu Hình Thông Tin Đơn Vị & Kỳ Báo Cáo</span>
+                </h3>
+                <button onclick="closeCompanyModal()" class="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200/60 transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <form id="company-form" onsubmit="handleSaveCompanyInfo(event)" class="p-5 sm:p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+                <!-- Khối thông tin pháp nhân -->
+                <div class="bg-sky-50/60 border border-sky-200/80 rounded-xl p-4 space-y-3">
+                    <div class="text-xs font-bold uppercase tracking-wider text-sky-800 flex items-center gap-1.5">
+                        <i data-lucide="landmark" class="w-3.5 h-3.5"></i>
+                        <span>Thông tin pháp nhân đơn vị</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                        <div class="sm:col-span-8">
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Tên đơn vị / Công ty <span class="text-rose-500">*</span></label>
+                            <input type="text" id="comp-name" required placeholder="VD: CÔNG TY TNHH THƯƠNG MẠI & DỊCH VỤ ABC" class="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500">
+                        </div>
+                        <div class="sm:col-span-4">
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Mã số thuế (MST) <span class="text-rose-500">*</span></label>
+                            <input type="text" id="comp-mst" required placeholder="VD: 0312345678" class="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Địa chỉ trụ sở <span class="text-rose-500">*</span></label>
+                        <input type="text" id="comp-address" required placeholder="VD: Số 123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh" class="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500">
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                        <div class="sm:col-span-6">
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Điện thoại / Email liên hệ</label>
+                            <input type="text" id="comp-contact" placeholder="VD: 028 3822 9999 - ketoan@abc.vn" class="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500">
+                        </div>
+                        <div class="sm:col-span-6">
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Kỳ báo cáo <span class="text-rose-500">*</span></label>
+                            <input type="text" id="comp-period" required placeholder="VD: Tháng 11/2026 (01/11/2026 - 30/11/2026)" class="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Khối nhân sự ký duyệt -->
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                    <div class="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                        <i data-lucide="pen-tool" class="w-3.5 h-3.5 text-brand-600"></i>
+                        <span>Họ tên người ký duyệt trên biểu mẫu (Tùy chọn)</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Người lập biểu</label>
+                            <input type="text" id="comp-sign-preparer" placeholder="Họ và tên người lập..." class="w-full px-3 py-1.5 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Thủ kho</label>
+                            <input type="text" id="comp-sign-storekeeper" placeholder="Họ và tên thủ kho..." class="w-full px-3 py-1.5 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Kế toán trưởng</label>
+                            <input type="text" id="comp-sign-accountant" placeholder="Họ và tên kế toán trưởng..." class="w-full px-3 py-1.5 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Giám đốc</label>
+                            <input type="text" id="comp-sign-director" placeholder="Họ và tên giám đốc..." class="w-full px-3 py-1.5 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-xs text-slate-500 bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200 flex items-center gap-2">
+                    <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600 shrink-0"></i>
+                    <span>Thông tin đơn vị được lưu độc lập, không bị mất khi bạn xóa hoặc nhập lại file Excel hàng hóa.</span>
+                </div>
+
+                <div class="pt-1 flex items-center justify-end gap-2">
+                    <button type="button" onclick="closeCompanyModal()" class="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition">
+                        Hủy bỏ
+                    </button>
+                    <button type="submit" class="px-5 py-2 text-sm font-semibold text-white bg-sky-600 hover:bg-sky-700 rounded-xl shadow-sm transition">
+                        Lưu thông tin đơn vị
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- APPLICATION LOGIC (JAVASCRIPT)                                        -->
+    <!-- ===================================================================== -->
+    <script>
+        // --- 1. DỮ LIỆU MẪU & TRẠNG THÁI ỨNG DỤNG ---
+        const STORAGE_KEY = 'inventory_dashboard_xnt_v3';
+        const COMPANY_STORAGE_KEY = 'inventory_dashboard_company_v1';
+
+        const DEFAULT_COMPANY_INFO = {
+            name: 'CÔNG TY CỔ PHẦN THƯƠNG MẠI & DỊCH VỤ',
+            mst: '0312345678',
+            address: 'Số 123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh',
+            contact: '028 3822 9999 - kho@congty.vn',
+            period: 'Tháng 11/2026',
+            preparer: 'Nguyễn Minh Anh',
+            storekeeper: 'Trần Văn Hùng',
+            accountant: 'Lê Thị Thu Hà',
+            director: 'Phạm Quốc Bảo'
+        };
+
+        const DEFAULT_SAMPLE_DATA = [
+            {
+                id: 'sku_1',
+                code: 'IT001',
+                name: 'Laptop Văn Phòng 14 inch Core i5 / 16GB / 512GB',
+                unit: 'Chiếc',
+                category: 'Thiết bị IT',
+                minStock: 5,
+                price: 16500000,
+                opening: 12,
+                openingValue: 198000000,
+                importQty: 8,
+                importValue: 132000000,
+                exportQty: 11,
+                exportValue: 181500000,
+                closing: 9,
+                closingValue: 148500000
+            },
+            {
+                id: 'sku_2',
+                code: 'IT002',
+                name: 'Màn Hình Máy Tính 24 inch IPS Full HD',
+                unit: 'Cái',
+                category: 'Thiết bị IT',
+                minStock: 8,
+                price: 3400000,
+                opening: 20,
+                openingValue: 68000000,
+                importQty: 10,
+                importValue: 34000000,
+                exportQty: 24,
+                exportValue: 81600000,
+                closing: 6,
+                closingValue: 20400000
+            },
+            {
+                id: 'sku_3',
+                code: 'VPP001',
+                name: 'Giấy In A4 Double A 80gsm (Thùng 5 Ram)',
+                unit: 'Thùng',
+                category: 'Văn phòng phẩm',
+                minStock: 15,
+                price: 360000,
+                opening: 45,
+                openingValue: 16200000,
+                importQty: 30,
+                importValue: 10800000,
+                exportQty: 52,
+                exportValue: 18720000,
+                closing: 23,
+                closingValue: 8280000
+            },
+            {
+                id: 'sku_4',
+                code: 'VPP002',
+                name: 'Mực In Laser Canon 057H Chính Hãng',
+                unit: 'Hộp',
+                category: 'Văn phòng phẩm',
+                minStock: 6,
+                price: 2450000,
+                opening: 10,
+                openingValue: 24500000,
+                importQty: 6,
+                importValue: 14700000,
+                exportQty: 12,
+                exportValue: 29400000,
+                closing: 4,
+                closingValue: 9800000
+            },
+            {
+                id: 'sku_5',
+                code: 'NL001',
+                name: 'Thùng Carton 5 Lớp Đóng Hàng (60x40x40cm)',
+                unit: 'Cái',
+                category: 'Bao bì & Vật tư',
+                minStock: 50,
+                price: 28000,
+                opening: 320,
+                openingValue: 8960000,
+                importQty: 200,
+                importValue: 5600000,
+                exportQty: 410,
+                exportValue: 11480000,
+                closing: 110,
+                closingValue: 3080000
+            },
+            {
+                id: 'sku_6',
+                code: 'NL002',
+                name: 'Cuộn Màng PE Quấn Pallet 50cm x 2.5kg',
+                unit: 'Cuộn',
+                category: 'Bao bì & Vật tư',
+                minStock: 20,
+                price: 115000,
+                opening: 35,
+                openingValue: 4025000,
+                importQty: 25,
+                importValue: 2875000,
+                exportQty: 62,
+                exportValue: 7130000,
+                closing: -2,
+                closingValue: -230000
+            },
+            {
+                id: 'sku_7',
+                code: 'TB001',
+                name: 'Máy Quét Mã Vạch Cầm Tay 2D Có Dây',
+                unit: 'Cái',
+                category: 'Thiết bị kho',
+                minStock: 5,
+                price: 1850000,
+                opening: 14,
+                openingValue: 25900000,
+                importQty: 5,
+                importValue: 9250000,
+                exportQty: 9,
+                exportValue: 16650000,
+                closing: 10,
+                closingValue: 18500000
+            }
+        ];
+
+        let companyInfo = { ...DEFAULT_COMPANY_INFO };
+        let inventoryData = [];
+        let barChartInstance = null;
+        let pieChartInstance = null;
+        let barChartMode = 'value';
+        let barChartScope = 'item';
+        let pieChartMode = 'group';
+        let manualValFlags = { opening: false, import: false, export: false };
+        let manualClosingFlag = false;
+
+        // --- 2. HÀM ĐỊNH DẠNG & AN TOÀN ---
+        function safeRenderIcons() {
+            try {
+                if (typeof lucide !== 'undefined' && lucide && typeof lucide.createIcons === 'function') {
+                    lucide.createIcons();
+                }
+            } catch (e) {
+                console.warn('Lucide icon render skipped:', e);
+            }
+        }
+
+        function formatCurrency(val) {
+            const num = Number(val) || 0;
+            return new Intl.NumberFormat('vi-VN', {
+                style: 'currency',
+                currency: 'VND',
+                maximumFractionDigits: 0
+            }).format(num);
+        }
+
+        function formatNumber(val) {
+            const num = Number(val) || 0;
+            return new Intl.NumberFormat('vi-VN', {
+                maximumFractionDigits: 4
+            }).format(num);
+        }
+
+        function normalizeItemObject(item) {
+            const safe = item && typeof item === 'object' ? item : {};
+            const price = Number(safe.price) || 0;
+            const minStock = safe.minStock !== undefined && safe.minStock !== '' ? Math.max(0, Number(safe.minStock) || 0) : 10;
+
+            const opening = Number(safe.opening) || 0;
+            const openingValue = safe.openingValue !== undefined && safe.openingValue !== '' ? Number(safe.openingValue) || 0 : opening * price;
+
+            const importQty = Number(safe.importQty) || 0;
+            const importValue = safe.importValue !== undefined && safe.importValue !== '' ? Number(safe.importValue) || 0 : importQty * price;
+
+            const exportQty = Number(safe.exportQty) || 0;
+            const exportValue = safe.exportValue !== undefined && safe.exportValue !== '' ? Number(safe.exportValue) || 0 : exportQty * price;
+
+            const closing = safe.closing !== undefined && safe.closing !== '' ? Number(safe.closing) || 0 : (opening + importQty - exportQty);
+            const closingValue = safe.closingValue !== undefined && safe.closingValue !== '' ? Number(safe.closingValue) || 0 : (openingValue + importValue - exportValue);
+
+            return {
+                id: String(safe.id || (Date.now().toString() + Math.random().toString(36).substring(2, 7))),
+                code: String(safe.code || 'MH').trim().toUpperCase(),
+                name: String(safe.name || 'Mặt hàng chưa đặt tên').trim(),
+                unit: String(safe.unit || 'Cái').trim(),
+                category: String(safe.category || 'Khác').trim(),
+                minStock,
+                price,
+                opening,
+                openingValue,
+                importQty,
+                importValue,
+                exportQty,
+                exportValue,
+                closing,
+                closingValue
+            };
+        }
+
+        function saveData() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(inventoryData));
+            } catch (e) {
+                console.error('Lỗi lưu dữ liệu kho vào localStorage:', e);
+            }
+        }
+
+        function loadData() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed)) {
+                        inventoryData = parsed.map(normalizeItemObject);
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.error('Lỗi đọc dữ liệu kho từ localStorage:', e);
+            }
+            inventoryData = DEFAULT_SAMPLE_DATA.map(normalizeItemObject);
+            saveData();
+        }
+
+        // --- 3. QUẢN LÝ THÔNG TIN ĐƠN VỊ ---
+        function loadCompanyInfo() {
+            try {
+                const saved = localStorage.getItem(COMPANY_STORAGE_KEY);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (parsed && typeof parsed === 'object') {
+                        companyInfo = { ...DEFAULT_COMPANY_INFO, ...parsed };
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.error('Lỗi đọc thông tin đơn vị:', e);
+            }
+            companyInfo = { ...DEFAULT_COMPANY_INFO };
+        }
+
+        function saveCompanyInfo() {
+            try {
+                localStorage.setItem(COMPANY_STORAGE_KEY, JSON.stringify(companyInfo));
+            } catch (e) {
+                console.error('Lỗi lưu thông tin đơn vị:', e);
+            }
+        }
+
+        function syncCompanyInfoUI() {
+            const subEl = document.getElementById('header-company-subtitle');
+            if (subEl) {
+                if (companyInfo.name) {
+                    const mstPart = companyInfo.mst ? ` • MST: ${companyInfo.mst}` : '';
+                    const periodPart = companyInfo.period ? ` • Kỳ: ${companyInfo.period}` : '';
+                    subEl.innerHTML = `<span class="font-semibold text-slate-700">${escapeHtml(companyInfo.name)}</span>${escapeHtml(mstPart)}${escapeHtml(periodPart)}`;
+                } else {
+                    subEl.textContent = 'Hệ thống phân tích tồn kho, biểu mẫu in & báo cáo Excel tự động';
+                }
+            }
+
+            const setText = (id, text) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = text || '-';
+            };
+
+            setText('bar-company-name', companyInfo.name);
+            setText('bar-company-mst', companyInfo.mst);
+            setText('bar-company-address', companyInfo.address);
+            setText('bar-company-contact', companyInfo.contact);
+            setText('bar-company-period', companyInfo.period);
+
+            setText('print-company-name', companyInfo.name ? `ĐƠN VỊ: ${companyInfo.name.toUpperCase()}` : '');
+            setText('print-company-mst', companyInfo.mst ? `Mã số thuế: ${companyInfo.mst}` : '');
+            setText('print-company-address', companyInfo.address ? `Địa chỉ: ${companyInfo.address}` : '');
+            setText('print-company-contact', companyInfo.contact ? `Điện thoại / Email: ${companyInfo.contact}` : '');
+            setText('print-report-period', companyInfo.period ? `Kỳ báo cáo: ${companyInfo.period}` : '');
+
+            setText('print-sign-preparer', companyInfo.preparer || '');
+            setText('print-sign-storekeeper', companyInfo.storekeeper || '');
+            setText('print-sign-accountant', companyInfo.accountant || '');
+            setText('print-sign-director', companyInfo.director || '');
+        }
+
+        function openCompanyModal() {
+            document.getElementById('comp-name').value = companyInfo.name || '';
+            document.getElementById('comp-mst').value = companyInfo.mst || '';
+            document.getElementById('comp-address').value = companyInfo.address || '';
+            document.getElementById('comp-contact').value = companyInfo.contact || '';
+            document.getElementById('comp-period').value = companyInfo.period || '';
+            document.getElementById('comp-sign-preparer').value = companyInfo.preparer || '';
+            document.getElementById('comp-sign-storekeeper').value = companyInfo.storekeeper || '';
+            document.getElementById('comp-sign-accountant').value = companyInfo.accountant || '';
+            document.getElementById('comp-sign-director').value = companyInfo.director || '';
+
+            const modal = document.getElementById('company-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            safeRenderIcons();
+        }
+
+        function closeCompanyModal() {
+            const modal = document.getElementById('company-modal');
+            if (!modal) return;
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function handleSaveCompanyInfo(event) {
+            event.preventDefault();
+            companyInfo = {
+                name: document.getElementById('comp-name').value.trim(),
+                mst: document.getElementById('comp-mst').value.trim(),
+                address: document.getElementById('comp-address').value.trim(),
+                contact: document.getElementById('comp-contact').value.trim(),
+                period: document.getElementById('comp-period').value.trim(),
+                preparer: document.getElementById('comp-sign-preparer').value.trim(),
+                storekeeper: document.getElementById('comp-sign-storekeeper').value.trim(),
+                accountant: document.getElementById('comp-sign-accountant').value.trim(),
+                director: document.getElementById('comp-sign-director').value.trim()
+            };
+
+            saveCompanyInfo();
+            syncCompanyInfoUI();
+            closeCompanyModal();
+            showToast('Đã lưu thông tin đơn vị & kỳ báo cáo!', 'success');
+        }
+
+        // --- 4. CẬP NHẬT TOÀN BỘ GIAO DIỆN ---
+        function refreshDashboard() {
+            try {
+                updateCategoryFilterOptions();
+                const filteredItems = getFilteredItems();
+                renderKPIs();
+                renderTable(filteredItems);
+                renderBarChart();
+                renderPieChart();
+                safeRenderIcons();
+            } catch (err) {
+                console.error('Lỗi làm mới dashboard:', err);
+            }
+        }
+
+        function renderKPIs() {
+            const items = inventoryData.map(normalizeItemObject);
+            let totalOpeningVal = 0, totalOpeningQty = 0;
+            let totalImportVal = 0, totalImportQty = 0;
+            let totalExportVal = 0, totalExportQty = 0;
+            let totalClosingVal = 0, totalClosingQty = 0;
+            let lowStockCount = 0;
+            let negativeStockCount = 0;
+
+            items.forEach(item => {
+                totalOpeningVal += item.openingValue;
+                totalOpeningQty += item.opening;
+                totalImportVal += item.importValue;
+                totalImportQty += item.importQty;
+                totalExportVal += item.exportValue;
+                totalExportQty += item.exportQty;
+                totalClosingVal += item.closingValue;
+                totalClosingQty += item.closing;
+
+                if (item.closing < 0) negativeStockCount++;
+                else if (item.closing <= item.minStock) lowStockCount++;
+            });
+
+            document.getElementById('kpi-opening-val').textContent = formatCurrency(totalOpeningVal);
+            document.getElementById('kpi-opening-qty').textContent = `Tổng SL: ${formatNumber(totalOpeningQty)}`;
+
+            document.getElementById('kpi-import-val').textContent = formatCurrency(totalImportVal);
+            document.getElementById('kpi-import-qty').textContent = `Tổng SL nhập: ${formatNumber(totalImportQty)}`;
+
+            document.getElementById('kpi-export-val').textContent = formatCurrency(totalExportVal);
+            document.getElementById('kpi-export-qty').textContent = `Tổng SL xuất: ${formatNumber(totalExportQty)}`;
+
+            document.getElementById('kpi-closing-val').textContent = formatCurrency(totalClosingVal);
+            document.getElementById('kpi-closing-qty').textContent = `Tổng SL tồn: ${formatNumber(totalClosingQty)}`;
+
+            document.getElementById('kpi-total-items').textContent = items.length;
+
+            const alertEl = document.getElementById('kpi-alert-text');
+            if (negativeStockCount > 0 || lowStockCount > 0) {
+                const parts = [];
+                if (negativeStockCount > 0) parts.push(`${negativeStockCount} mã âm kho`);
+                if (lowStockCount > 0) parts.push(`${lowStockCount} mã sắp hết`);
+                alertEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-500 inline-block shrink-0"></span> <span class="text-rose-600 font-semibold truncate">${escapeHtml(parts.join(' • '))}</span>`;
+            } else {
+                alertEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 inline-block shrink-0"></span> <span>Tồn kho ổn định</span>`;
+            }
+        }
+
+        // --- 5. BỘ LỌC & TÌM KIẾM ---
+        function updateCategoryFilterOptions() {
+            const select = document.getElementById('filter-category');
+            const datalist = document.getElementById('category-suggestions');
+            if (!select || !datalist) return;
+
+            const currentVal = select.value;
+            const categories = [...new Set(inventoryData.map(i => (i.category || 'Khác').trim()))].sort();
+
+            select.innerHTML = '<option value="ALL">Tất cả nhóm hàng</option>';
+            datalist.innerHTML = '';
+
+            categories.forEach(cat => {
+                const opt = document.createElement('option');
+                opt.value = cat;
+                opt.textContent = cat;
+                select.appendChild(opt);
+
+                const dataOpt = document.createElement('option');
+                dataOpt.value = cat;
+                datalist.appendChild(dataOpt);
+            });
+
+            if (categories.includes(currentVal)) {
+                select.value = currentVal;
+            }
+        }
+
+        function getFilteredItems() {
+            const keywordEl = document.getElementById('search-input');
+            const catEl = document.getElementById('filter-category');
+            const statusEl = document.getElementById('filter-status');
+
+            const keyword = keywordEl ? keywordEl.value.trim().toLowerCase() : '';
+            const catFilter = catEl ? catEl.value : 'ALL';
+            const statusFilter = statusEl ? statusEl.value : 'ALL';
+
+            return inventoryData.map(normalizeItemObject).filter(item => {
+                const matchKeyword = !keyword ||
+                    item.code.toLowerCase().includes(keyword) ||
+                    item.name.toLowerCase().includes(keyword);
+
+                const matchCat = catFilter === 'ALL' || (item.category || 'Khác') === catFilter;
+
+                let matchStatus = true;
+                if (statusFilter === 'IN_STOCK') matchStatus = item.closing > item.minStock;
+                else if (statusFilter === 'LOW_STOCK') matchStatus = item.closing > 0 && item.closing <= item.minStock;
+                else if (statusFilter === 'OUT_OR_NEGATIVE') matchStatus = item.closing <= 0;
+
+                return matchKeyword && matchCat && matchStatus;
+            });
+        }
+
+        function applyFilters() {
+            const filtered = getFilteredItems();
+            renderTable(filtered);
+            renderBarChart();
+            renderPieChart();
+            safeRenderIcons();
+        }
+
+        // --- 6. RENDER BẢNG CHI TIẾT ---
+        function renderTable(items) {
+            const tbody = document.getElementById('inventory-tbody');
+            const tfoot = document.getElementById('inventory-tfoot');
+            const emptyState = document.getElementById('empty-state');
+
+            if (!items || items.length === 0) {
+                tbody.innerHTML = '';
+                tfoot.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+
+            let sumOpening = 0, sumOpeningVal = 0;
+            let sumImport = 0, sumImportVal = 0;
+            let sumExport = 0, sumExportVal = 0;
+            let sumClosing = 0, sumClosingVal = 0;
+
+            tbody.innerHTML = items.map((item, idx) => {
+                sumOpening += item.opening;
+                sumOpeningVal += item.openingValue;
+                sumImport += item.importQty;
+                sumImportVal += item.importValue;
+                sumExport += item.exportQty;
+                sumExportVal += item.exportValue;
+                sumClosing += item.closing;
+                sumClosingVal += item.closingValue;
+
+                let closingTextClass = 'text-indigo-700 bg-indigo-50/40';
+                let warningIcon = '';
+                if (item.closing < 0) {
+                    closingTextClass = 'text-rose-700 bg-rose-50 font-extrabold';
+                    warningIcon = `<span title="Cảnh báo: Âm kho!" class="inline-block ml-0.5 text-rose-600">⚠️</span>`;
+                } else if (item.closing <= 0) {
+                    closingTextClass = 'text-slate-600 bg-slate-100';
+                    warningIcon = `<span title="Hết hàng!" class="inline-block ml-0.5 text-rose-500">!</span>`;
+                } else if (item.closing <= item.minStock) {
+                    closingTextClass = 'text-amber-700 bg-amber-50';
+                    warningIcon = `<span title="Sắp hết hàng (≤ Tồn tối thiểu ${formatNumber(item.minStock)})" class="inline-block ml-0.5 text-amber-500">●</span>`;
+                }
+
+                return `
+                    <tr class="hover:bg-slate-50/90 transition group">
+                        <td class="py-2 px-1 text-center text-slate-500 border-r border-slate-100">${idx + 1}</td>
+                        <td class="py-2 px-1.5 font-semibold text-slate-800 border-r border-slate-100">${escapeHtml(item.code)}</td>
+                        <td class="py-2 px-1.5 font-medium text-slate-800 border-r border-slate-100">
+                            <div>${escapeHtml(item.name)}</div>
+                            <div class="no-print mt-1 flex items-center gap-1.5">
+                                <button type="button" onclick="openItemModal('${escapeHtml(item.id)}')" class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium text-brand-700 bg-brand-50 hover:bg-brand-100 rounded transition" title="Chỉnh sửa SL & Thành tiền">
+                                    <i data-lucide="pencil" class="w-3 h-3"></i>
+                                    <span>Sửa</span>
+                                </button>
+                                <button type="button" onclick="confirmDeleteItem('${escapeHtml(item.id)}')" class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium text-rose-700 bg-rose-50 hover:bg-rose-100 rounded transition" title="Xóa mặt hàng">
+                                    <i data-lucide="trash-2" class="w-3 h-3"></i>
+                                    <span>Xóa</span>
+                                </button>
+                            </div>
+                        </td>
+                        <td class="py-2 px-1 text-center text-slate-600 border-r border-slate-100">${escapeHtml(item.unit)}</td>
+                        <td class="py-2 px-1.5 border-r border-slate-100">
+                            <span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700">
+                                ${escapeHtml(item.category || 'Khác')}
+                            </span>
+                        </td>
+
+                        <!-- Tồn đầu -->
+                        <td class="py-2 px-1 text-right text-slate-700 tabular-nums">${formatNumber(item.opening)}</td>
+                        <td class="py-2 px-1.5 text-right text-slate-700 tabular-nums border-r border-slate-200">${formatCurrency(item.openingValue)}</td>
+
+                        <!-- Nhập kỳ -->
+                        <td class="py-2 px-1 text-right text-emerald-700 font-medium tabular-nums bg-emerald-50/20">${formatNumber(item.importQty)}</td>
+                        <td class="py-2 px-1.5 text-right text-emerald-700 font-medium tabular-nums bg-emerald-50/20 border-r border-slate-200">${formatCurrency(item.importValue)}</td>
+
+                        <!-- Xuất kỳ -->
+                        <td class="py-2 px-1 text-right text-amber-700 font-medium tabular-nums bg-amber-50/20">${formatNumber(item.exportQty)}</td>
+                        <td class="py-2 px-1.5 text-right text-amber-700 font-medium tabular-nums bg-amber-50/20 border-r border-slate-200">${formatCurrency(item.exportValue)}</td>
+
+                        <!-- Tồn cuối -->
+                        <td class="py-2 px-1 text-right font-bold tabular-nums ${closingTextClass}">
+                            ${formatNumber(item.closing)}${warningIcon}
+                        </td>
+                        <td class="py-2 px-1.5 text-right font-bold text-indigo-950 bg-indigo-50/30 tabular-nums border-r border-slate-200">
+                            ${formatCurrency(item.closingValue)}
+                        </td>
+
+                        <!-- Tồn tối thiểu -->
+                        <td class="py-2 px-1 text-right text-slate-600 tabular-nums">
+                            ${formatNumber(item.minStock)}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            tfoot.innerHTML = `
+                <tr>
+                    <td colspan="5" class="py-2.5 px-1.5 text-right uppercase text-[10px] tracking-wider text-slate-600 border-r border-slate-200">
+                        Tổng cộng (${items.length} mặt hàng):
+                    </td>
+                    <td class="py-2.5 px-1 text-right tabular-nums">${formatNumber(sumOpening)}</td>
+                    <td class="py-2.5 px-1.5 text-right tabular-nums border-r border-slate-200">${formatCurrency(sumOpeningVal)}</td>
+                    <td class="py-2.5 px-1 text-right text-emerald-700 tabular-nums">${formatNumber(sumImport)}</td>
+                    <td class="py-2.5 px-1.5 text-right text-emerald-700 tabular-nums border-r border-slate-200">${formatCurrency(sumImportVal)}</td>
+                    <td class="py-2.5 px-1 text-right text-amber-700 tabular-nums">${formatNumber(sumExport)}</td>
+                    <td class="py-2.5 px-1.5 text-right text-amber-700 tabular-nums border-r border-slate-200">${formatCurrency(sumExportVal)}</td>
+                    <td class="py-2.5 px-1 text-right text-indigo-700 bg-indigo-50/50 tabular-nums">${formatNumber(sumClosing)}</td>
+                    <td class="py-2.5 px-1.5 text-right text-indigo-950 bg-indigo-50/50 tabular-nums border-r border-slate-200">${formatCurrency(sumClosingVal)}</td>
+                    <td class="py-2.5 px-1 text-right text-slate-400">—</td>
+                </tr>
+            `;
+        }
+
+        // --- 7. BIỂU ĐỒ DẠNG CỘT & DẠNG TRÒN (CHART.JS AN TOÀN) ---
+        function truncateAxisLabel(text, maxLen = 16) {
+            const str = String(text || '').trim();
+            if (str.length <= maxLen) return str;
+            return str.slice(0, maxLen - 1).trim() + '…';
+        }
+
+        function setBarChartScope(scope) {
+            barChartScope = scope;
+            const btnItem = document.getElementById('btn-bar-scope-item');
+            const btnGroup = document.getElementById('btn-bar-scope-group');
+            if (scope === 'item') {
+                btnItem.className = 'px-2.5 py-1 text-xs font-semibold rounded-lg bg-white text-brand-600 shadow-sm transition';
+                btnGroup.className = 'px-2.5 py-1 text-xs font-medium rounded-lg text-slate-600 hover:text-slate-900 transition';
+            } else {
+                btnGroup.className = 'px-2.5 py-1 text-xs font-semibold rounded-lg bg-white text-brand-600 shadow-sm transition';
+                btnItem.className = 'px-2.5 py-1 text-xs font-medium rounded-lg text-slate-600 hover:text-slate-900 transition';
+            }
+            renderBarChart();
+        }
+
+        function setBarChartMode(mode) {
+            barChartMode = mode;
+            const btnVal = document.getElementById('btn-bar-value');
+            const btnQty = document.getElementById('btn-bar-qty');
+
+            if (mode === 'value') {
+                btnVal.className = 'px-2.5 py-1 text-xs font-semibold rounded-lg bg-white text-brand-600 shadow-sm transition';
+                btnQty.className = 'px-2.5 py-1 text-xs font-medium rounded-lg text-slate-600 hover:text-slate-900 transition';
+            } else {
+                btnQty.className = 'px-2.5 py-1 text-xs font-semibold rounded-lg bg-white text-brand-600 shadow-sm transition';
+                btnVal.className = 'px-2.5 py-1 text-xs font-medium rounded-lg text-slate-600 hover:text-slate-900 transition';
+            }
+            renderBarChart();
+        }
+
+        function setPieChartMode(mode) {
+            pieChartMode = mode;
+            const btnGroup = document.getElementById('btn-pie-group');
+            const btnItem = document.getElementById('btn-pie-item');
+
+            if (mode === 'group') {
+                btnGroup.className = 'px-2.5 py-1 text-xs font-semibold rounded-lg bg-white text-brand-600 shadow-sm transition';
+                btnItem.className = 'px-2.5 py-1 text-xs font-medium rounded-lg text-slate-600 hover:text-slate-900 transition';
+            } else {
+                btnItem.className = 'px-2.5 py-1 text-xs font-semibold rounded-lg bg-white text-brand-600 shadow-sm transition';
+                btnGroup.className = 'px-2.5 py-1 text-xs font-medium rounded-lg text-slate-600 hover:text-slate-900 transition';
+            }
+            renderPieChart();
+        }
+
+        function renderBarChart() {
+            const canvas = document.getElementById('barChart');
+            if (!canvas) return;
+            if (barChartInstance) {
+                barChartInstance.destroy();
+                barChartInstance = null;
+            }
+            if (typeof Chart === 'undefined') return;
+
+            const ctx = canvas.getContext('2d');
+            const isVal = barChartMode === 'value';
+            const sourceItems = getFilteredItems();
+            const subtitleEl = document.getElementById('bar-chart-subtitle');
+
+            let entries = [];
+            if (barChartScope === 'group') {
+                const map = new Map();
+                sourceItems.forEach(item => {
+                    const cat = item.category || 'Khác';
+                    if (!map.has(cat)) {
+                        map.set(cat, {
+                            axisLabel: truncateAxisLabel(cat, 15),
+                            fullTitle: `Nhóm hàng: ${cat}`,
+                            unitLabel: 'nhóm',
+                            openingVal: 0, openingQty: 0,
+                            importVal: 0, importQty: 0,
+                            exportVal: 0, exportQty: 0,
+                            closingVal: 0, closingQty: 0
+                        });
+                    }
+                    const g = map.get(cat);
+                    g.openingVal += item.openingValue;
+                    g.openingQty += item.opening;
+                    g.importVal += item.importValue;
+                    g.importQty += item.importQty;
+                    g.exportVal += item.exportValue;
+                    g.exportQty += item.exportQty;
+                    g.closingVal += item.closingValue;
+                    g.closingQty += item.closing;
+                });
+
+                entries = [...map.values()]
+                    .sort((a, b) => isVal ? b.closingVal - a.closingVal : b.closingQty - a.closingQty)
+                    .slice(0, 10);
+
+                if (subtitleEl) {
+                    subtitleEl.textContent = `So sánh Tồn đầu - Nhập - Xuất - Tồn cuối theo nhóm hàng (${isVal ? 'Thành tiền ₫' : 'Số lượng'})`;
+                }
+            } else {
+                entries = [...sourceItems]
+                    .sort((a, b) => isVal ? b.closingValue - a.closingValue : b.closing - a.closing)
+                    .slice(0, 10)
+                    .map(item => ({
+                        axisLabel: `${item.code} • ${truncateAxisLabel(item.name, 11)}`,
+                        fullTitle: `${item.code} - ${item.name} (${item.unit})`,
+                        unitLabel: item.unit,
+                        openingVal: item.openingValue,
+                        openingQty: item.opening,
+                        importVal: item.importValue,
+                        importQty: item.importQty,
+                        exportVal: item.exportValue,
+                        exportQty: item.exportQty,
+                        closingVal: item.closingValue,
+                        closingQty: item.closing
+                    }));
+
+                if (subtitleEl) {
+                    subtitleEl.textContent = `So sánh Tồn đầu - Nhập - Xuất - Tồn cuối theo mặt hàng (Top 10 • ${isVal ? 'Thành tiền ₫' : 'Số lượng'})`;
+                }
+            }
+
+            const labels = entries.map(e => e.axisLabel);
+            const datasetOpening = entries.map(e => isVal ? e.openingVal : e.openingQty);
+            const datasetImport = entries.map(e => isVal ? e.importVal : e.importQty);
+            const datasetExport = entries.map(e => isVal ? e.exportVal : e.exportQty);
+            const datasetClosing = entries.map(e => isVal ? e.closingVal : e.closingQty);
+
+            barChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            label: 'Tồn đầu',
+                            data: datasetOpening,
+                            backgroundColor: '#64748b',
+                            hoverBackgroundColor: '#475569',
+                            borderRadius: 4,
+                            maxBarThickness: 22
+                        },
+                        {
+                            label: 'Nhập trong kỳ',
+                            data: datasetImport,
+                            backgroundColor: '#10b981',
+                            hoverBackgroundColor: '#059669',
+                            borderRadius: 4,
+                            maxBarThickness: 22
+                        },
+                        {
+                            label: 'Xuất trong kỳ',
+                            data: datasetExport,
+                            backgroundColor: '#f59e0b',
+                            hoverBackgroundColor: '#d97706',
+                            borderRadius: 4,
+                            maxBarThickness: 22
+                        },
+                        {
+                            label: 'Tồn cuối',
+                            data: datasetClosing,
+                            backgroundColor: '#2563eb',
+                            hoverBackgroundColor: '#1d4ed8',
+                            borderRadius: 4,
+                            maxBarThickness: 22
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: {
+                        onComplete: () => syncChartsToPrintImages()
+                    },
+                    interaction: { mode: 'index', intersect: false },
+                    layout: {
+                        padding: { top: 4, right: 8, bottom: 0, left: 0 }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            align: 'start',
+                            labels: {
+                                usePointStyle: true,
+                                pointStyle: 'circle',
+                                boxWidth: 8,
+                                padding: 14,
+                                font: { family: '"Be Vietnam Pro", sans-serif', size: 11, weight: '600' },
+                                color: '#334155'
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                            titleColor: '#f8fafc',
+                            bodyColor: '#e2e8f0',
+                            padding: 12,
+                            cornerRadius: 10,
+                            titleFont: { family: '"Be Vietnam Pro", sans-serif', size: 12, weight: '700' },
+                            bodyFont: { family: '"Be Vietnam Pro", sans-serif', size: 11 },
+                            callbacks: {
+                                title: (items) => {
+                                    const idx = items[0] ? items[0].dataIndex : 0;
+                                    return entries[idx] ? entries[idx].fullTitle : '';
+                                },
+                                label: (context) => {
+                                    const idx = context.dataIndex;
+                                    const entry = entries[idx];
+                                    const raw = Number(context.raw) || 0;
+                                    if (isVal) {
+                                        const qtyMap = [entry?.openingQty, entry?.importQty, entry?.exportQty, entry?.closingQty];
+                                        const qtyVal = qtyMap[context.datasetIndex];
+                                        const suffix = barChartScope === 'item' && entry?.unitLabel && qtyVal !== undefined
+                                            ? ` (SL: ${formatNumber(qtyVal)} ${entry.unitLabel})`
+                                            : '';
+                                        return ` ${context.dataset.label}: ${formatCurrency(raw)}${suffix}`;
+                                    }
+                                    const unitText = barChartScope === 'item' && entry?.unitLabel ? ` ${entry.unitLabel}` : '';
+                                    return ` ${context.dataset.label}: ${formatNumber(raw)}${unitText}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            border: { color: '#e2e8f0' },
+                            ticks: {
+                                maxRotation: 24,
+                                minRotation: 0,
+                                autoSkip: false,
+                                font: { family: '"Be Vietnam Pro", sans-serif', size: 10, weight: '500' },
+                                color: '#475569'
+                            }
+                        },
+                        y: {
+                            grid: { color: '#f1f5f9' },
+                            border: { display: false },
+                            ticks: {
+                                font: { family: '"Be Vietnam Pro", sans-serif', size: 10 },
+                                color: '#64748b',
+                                callback: (value) => {
+                                    if (!isVal) return formatNumber(value);
+                                    if (Math.abs(value) >= 1e9) return (value / 1e9).toFixed(1).replace(/\.0$/, '') + ' Tỷ ₫';
+                                    if (Math.abs(value) >= 1e6) return (value / 1e6).toFixed(0) + ' Tr ₫';
+                                    if (Math.abs(value) >= 1e3) return (value / 1e3).toFixed(0) + 'K ₫';
+                                    return formatNumber(value) + ' ₫';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderPieChart() {
+            const canvas = document.getElementById('pieChart');
+            if (!canvas) return;
+            if (pieChartInstance) {
+                pieChartInstance.destroy();
+                pieChartInstance = null;
+            }
+            if (typeof Chart === 'undefined') return;
+
+            const ctx = canvas.getContext('2d');
+            const items = getFilteredItems();
+            const subtitleEl = document.getElementById('pie-chart-subtitle');
+
+            let labels = [];
+            let values = [];
+            let hasNegativeStock = false;
+
+            if (pieChartMode === 'group') {
+                if (subtitleEl) subtitleEl.textContent = 'Tỷ trọng (%) và giá trị (₫) tồn cuối theo nhóm hàng';
+                const map = new Map();
+                items.forEach(item => {
+                    if (item.closing < 0 || item.closingValue < 0) hasNegativeStock = true;
+                    const cat = item.category || 'Khác';
+                    const positiveVal = Math.max(0, Number(item.closingValue) || 0);
+                    map.set(cat, (map.get(cat) || 0) + positiveVal);
+                });
+                const entries = [...map.entries()].filter(e => e[1] > 0).sort((a, b) => b[1] - a[1]);
+                labels = entries.map(e => e[0]);
+                values = entries.map(e => e[1]);
+            } else {
+                if (subtitleEl) subtitleEl.textContent = 'Tỷ trọng (%) và giá trị (₫) tồn cuối theo mặt hàng';
+                const sorted = [...items]
+                    .map(item => {
+                        if (item.closing < 0 || item.closingValue < 0) hasNegativeStock = true;
+                        return {
+                            label: `${item.code} - ${truncateAxisLabel(item.name, 18)}`,
+                            val: Math.max(0, Number(item.closingValue) || 0)
+                        };
+                    })
+                    .filter(x => x.val > 0)
+                    .sort((a, b) => b.val - a.val);
+
+                const top7 = sorted.slice(0, 7);
+                const restVal = sorted.slice(7).reduce((acc, cur) => acc + cur.val, 0);
+                labels = top7.map(x => x.label);
+                values = top7.map(x => x.val);
+                if (restVal > 0) {
+                    labels.push('Mặt hàng khác');
+                    values.push(restVal);
+                }
+            }
+
+            const total = values.reduce((a, b) => a + b, 0);
+            const isEmptyPositive = total <= 0;
+            if (isEmptyPositive) {
+                labels = [hasNegativeStock ? 'Giá trị tồn dương = 0 (có mã âm kho)' : 'Không có giá trị tồn dương'];
+                values = [1];
+            }
+
+            const palette = ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#6366f1', '#64748b'];
+
+            pieChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels,
+                    datasets: [{
+                        data: values,
+                        backgroundColor: isEmptyPositive
+                            ? ['#cbd5e1']
+                            : labels.map((_, idx) => palette[idx % palette.length]),
+                        borderColor: '#ffffff',
+                        borderWidth: 2,
+                        hoverOffset: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '56%',
+                    animation: {
+                        onComplete: () => syncChartsToPrintImages()
+                    },
+                    layout: {
+                        padding: { top: 4, right: 6, bottom: 4, left: 4 }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            align: 'center',
+                            labels: {
+                                usePointStyle: true,
+                                pointStyle: 'circle',
+                                boxWidth: 8,
+                                padding: 10,
+                                font: { family: '"Be Vietnam Pro", sans-serif', size: 10, weight: '500' },
+                                color: '#334155',
+                                generateLabels: (chart) => {
+                                    const data = chart.data;
+                                    const sum = data.datasets[0].data.reduce((a, b) => a + (Number(b) || 0), 0) || 1;
+                                    return data.labels.map((lbl, i) => {
+                                        const val = Number(data.datasets[0].data[i]) || 0;
+                                        const pct = !isEmptyPositive && total > 0 ? ((val / sum) * 100).toFixed(1) : '0.0';
+                                        const shortLbl = truncateAxisLabel(lbl, 16);
+                                        return {
+                                            text: isEmptyPositive ? shortLbl : `${shortLbl} (${pct}%)`,
+                                            fillStyle: data.datasets[0].backgroundColor[i],
+                                            strokeStyle: '#ffffff',
+                                            lineWidth: 1,
+                                            hidden: !chart.getDataVisibility(i),
+                                            index: i
+                                        };
+                                    });
+                                }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                            titleColor: '#f8fafc',
+                            bodyColor: '#e2e8f0',
+                            padding: 12,
+                            cornerRadius: 10,
+                            titleFont: { family: '"Be Vietnam Pro", sans-serif', size: 12, weight: '700' },
+                            bodyFont: { family: '"Be Vietnam Pro", sans-serif', size: 11 },
+                            callbacks: {
+                                label: (context) => {
+                                    if (isEmptyPositive) return ' Giá trị tồn dương: 0 ₫';
+                                    const val = Number(context.raw) || 0;
+                                    const pct = total > 0 ? ((val / total) * 100).toFixed(1) : '0.0';
+                                    return ` ${formatCurrency(val)} (${pct}% tổng tồn dương)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function syncChartsToPrintImages() {
+            try {
+                if (barChartInstance) {
+                    const barImg = document.getElementById('barChartPrintImg');
+                    if (barImg) barImg.src = barChartInstance.toBase64Image();
+                }
+                if (pieChartInstance) {
+                    const pieImg = document.getElementById('pieChartPrintImg');
+                    if (pieImg) pieImg.src = pieChartInstance.toBase64Image();
+                }
+            } catch (e) {
+                console.warn('Không thể tạo ảnh in cho biểu đồ:', e);
+            }
+        }
+
+        // --- 8. MODAL THÊM / SỬA HÀNG HÓA ---
+        function openItemModal(id = null) {
+            const modal = document.getElementById('item-modal');
+            const title = document.getElementById('modal-title');
+            const form = document.getElementById('item-form');
+            form.reset();
+
+            if (id) {
+                const raw = inventoryData.find(i => i.id === id);
+                if (!raw) return;
+                const item = normalizeItemObject(raw);
+
+                title.innerHTML = `<i data-lucide="pencil" class="w-5 h-5 text-brand-600"></i> <span>Chỉnh Sửa Mặt Hàng (SL & Thành tiền)</span>`;
+                document.getElementById('edit-item-id').value = item.id;
+                document.getElementById('field-code').value = item.code;
+                document.getElementById('field-name').value = item.name;
+                document.getElementById('field-unit').value = item.unit;
+                document.getElementById('field-category').value = item.category;
+                document.getElementById('field-min-stock').value = item.minStock;
+                document.getElementById('field-price').value = item.price;
+
+                document.getElementById('field-opening-qty').value = item.opening;
+                document.getElementById('field-opening-val').value = item.openingValue;
+
+                document.getElementById('field-import-qty').value = item.importQty;
+                document.getElementById('field-import-val').value = item.importValue;
+
+                document.getElementById('field-export-qty').value = item.exportQty;
+                document.getElementById('field-export-val').value = item.exportValue;
+
+                document.getElementById('field-closing-qty').value = item.closing;
+                document.getElementById('field-closing-val').value = item.closingValue;
+
+                manualValFlags = { opening: true, import: true, export: true };
+                manualClosingFlag = true;
+                updateBalanceBadge();
+            } else {
+                title.innerHTML = `<i data-lucide="package-plus" class="w-5 h-5 text-brand-600"></i> <span>Thêm Mặt Hàng Mới</span>`;
+                document.getElementById('edit-item-id').value = '';
+                document.getElementById('field-min-stock').value = 10;
+                manualValFlags = { opening: false, import: false, export: false };
+                manualClosingFlag = false;
+                autoBalanceClosing(false);
+            }
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            safeRenderIcons();
+        }
+
+        function closeItemModal() {
+            const modal = document.getElementById('item-modal');
+            if (!modal) return;
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function onReferencePriceChange() {
+            const price = parseFloat(document.getElementById('field-price').value) || 0;
+            if (!manualValFlags.opening) {
+                const qty = parseFloat(document.getElementById('field-opening-qty').value) || 0;
+                document.getElementById('field-opening-val').value = Math.round(qty * price);
+            }
+            if (!manualValFlags.import) {
+                const qty = parseFloat(document.getElementById('field-import-qty').value) || 0;
+                document.getElementById('field-import-val').value = Math.round(qty * price);
+            }
+            if (!manualValFlags.export) {
+                const qty = parseFloat(document.getElementById('field-export-qty').value) || 0;
+                document.getElementById('field-export-val').value = Math.round(qty * price);
+            }
+            if (!manualClosingFlag) autoBalanceClosing(false);
+        }
+
+        function onQtyInput(section) {
+            const price = parseFloat(document.getElementById('field-price').value) || 0;
+            const qty = parseFloat(document.getElementById(`field-${section}-qty`).value) || 0;
+
+            if (!manualValFlags[section] && price > 0) {
+                document.getElementById(`field-${section}-val`).value = Math.round(qty * price);
+            }
+            if (!manualClosingFlag) autoBalanceClosing(false);
+        }
+
+        function onValInput(section) {
+            manualValFlags[section] = true;
+            if (!manualClosingFlag) autoBalanceClosing(false);
+        }
+
+        function calcSectionByPrice(section) {
+            const price = parseFloat(document.getElementById('field-price').value) || 0;
+            if (price <= 0) {
+                showToast('Vui lòng nhập Đơn giá tham chiếu lớn hơn 0 trước!', 'info');
+                return;
+            }
+            const qty = parseFloat(document.getElementById(`field-${section}-qty`).value) || 0;
+            document.getElementById(`field-${section}-val`).value = Math.round(qty * price);
+            manualValFlags[section] = false;
+            if (!manualClosingFlag) autoBalanceClosing(false);
+        }
+
+        function calcExportByWeightedAvg() {
+            const openQty = parseFloat(document.getElementById('field-opening-qty').value) || 0;
+            const openVal = parseFloat(document.getElementById('field-opening-val').value) || 0;
+            const impQty = parseFloat(document.getElementById('field-import-qty').value) || 0;
+            const impVal = parseFloat(document.getElementById('field-import-val').value) || 0;
+            const expQty = parseFloat(document.getElementById('field-export-qty').value) || 0;
+            const refPrice = parseFloat(document.getElementById('field-price').value) || 0;
+
+            let unitCost = refPrice;
+            if (openQty + impQty > 0 && (openVal + impVal) > 0) {
+                unitCost = (openVal + impVal) / (openQty + impQty);
+            }
+
+            if (unitCost <= 0) {
+                showToast('Chưa có cơ sở giá tồn đầu/nhập hoặc đơn giá tham chiếu để tính!', 'info');
+                return;
+            }
+
+            document.getElementById('field-export-val').value = Math.round(expQty * unitCost);
+            manualValFlags.export = false;
+            if (!manualClosingFlag) autoBalanceClosing(false);
+        }
+
+        function autoBalanceClosing(notify = false) {
+            const openQty = parseFloat(document.getElementById('field-opening-qty').value) || 0;
+            const openVal = parseFloat(document.getElementById('field-opening-val').value) || 0;
+            const impQty = parseFloat(document.getElementById('field-import-qty').value) || 0;
+            const impVal = parseFloat(document.getElementById('field-import-val').value) || 0;
+            const expQty = parseFloat(document.getElementById('field-export-qty').value) || 0;
+            const expVal = parseFloat(document.getElementById('field-export-val').value) || 0;
+
+            const closeQty = +(openQty + impQty - expQty).toFixed(4);
+            const closeVal = Math.round(openVal + impVal - expVal);
+
+            document.getElementById('field-closing-qty').value = closeQty;
+            document.getElementById('field-closing-val').value = closeVal;
+            manualClosingFlag = false;
+            updateBalanceBadge();
+
+            if (notify) {
+                showToast('Đã cân đối tự động Tồn cuối = Tồn đầu + Nhập - Xuất', 'info');
+            }
+        }
+
+        function onClosingManualEdit() {
+            manualClosingFlag = true;
+            updateBalanceBadge();
+        }
+
+        function updateBalanceBadge() {
+            const openQty = parseFloat(document.getElementById('field-opening-qty').value) || 0;
+            const openVal = parseFloat(document.getElementById('field-opening-val').value) || 0;
+            const impQty = parseFloat(document.getElementById('field-import-qty').value) || 0;
+            const impVal = parseFloat(document.getElementById('field-import-val').value) || 0;
+            const expQty = parseFloat(document.getElementById('field-export-qty').value) || 0;
+            const expVal = parseFloat(document.getElementById('field-export-val').value) || 0;
+
+            const closeQty = parseFloat(document.getElementById('field-closing-qty').value) || 0;
+            const closeVal = parseFloat(document.getElementById('field-closing-val').value) || 0;
+
+            const expectedQty = +(openQty + impQty - expQty).toFixed(4);
+            const expectedVal = Math.round(openVal + impVal - expVal);
+
+            const badge = document.getElementById('balance-status-badge');
+            if (!badge) return;
+            if (Math.abs(closeQty - expectedQty) < 0.001 && Math.abs(closeVal - expectedVal) <= 1) {
+                badge.className = 'font-semibold text-emerald-600';
+                badge.textContent = '✓ Đã cân đối sổ sách';
+            } else {
+                badge.className = 'font-semibold text-amber-600';
+                badge.textContent = '✎ Đang điều chỉnh tồn cuối thủ công';
+            }
+        }
+
+        function handleSaveItem(event) {
+            event.preventDefault();
+            const id = document.getElementById('edit-item-id').value;
+            const code = document.getElementById('field-code').value.trim().toUpperCase();
+            const name = document.getElementById('field-name').value.trim();
+            const unit = document.getElementById('field-unit').value.trim();
+            const category = document.getElementById('field-category').value.trim() || 'Khác';
+            const minStock = Math.max(0, parseFloat(document.getElementById('field-min-stock').value) || 0);
+            const price = parseFloat(document.getElementById('field-price').value) || 0;
+
+            const opening = parseFloat(document.getElementById('field-opening-qty').value) || 0;
+            const openingValue = parseFloat(document.getElementById('field-opening-val').value) || 0;
+            const importQty = parseFloat(document.getElementById('field-import-qty').value) || 0;
+            const importValue = parseFloat(document.getElementById('field-import-val').value) || 0;
+            const exportQty = parseFloat(document.getElementById('field-export-qty').value) || 0;
+            const exportValue = parseFloat(document.getElementById('field-export-val').value) || 0;
+            const closing = parseFloat(document.getElementById('field-closing-qty').value) || 0;
+            const closingValue = parseFloat(document.getElementById('field-closing-val').value) || 0;
+
+            const duplicate = inventoryData.find(i => i.code.toUpperCase() === code && i.id !== id);
+            if (duplicate) {
+                showToast(`Mã hàng "${code}" đã tồn tại trong danh sách!`, 'error');
+                return;
+            }
+
+            const record = {
+                id: id || (Date.now().toString() + Math.random().toString(36).substring(2, 7)),
+                code, name, unit, category, minStock, price,
+                opening, openingValue,
+                importQty, importValue,
+                exportQty, exportValue,
+                closing, closingValue
+            };
+
+            if (id) {
+                const index = inventoryData.findIndex(i => i.id === id);
+                if (index !== -1) {
+                    inventoryData[index] = record;
+                    showToast(`Đã cập nhật mặt hàng ${code}`, 'success');
+                }
+            } else {
+                inventoryData.unshift(record);
+                showToast(`Đã thêm mặt hàng ${code}`, 'success');
+            }
+
+            saveData();
+            closeItemModal();
+            refreshDashboard();
+        }
+
+        function confirmDeleteItem(id) {
+            const item = inventoryData.find(i => i.id === id);
+            if (!item) return;
+
+            openConfirmModal(
+                'Xóa mặt hàng',
+                `Bạn có chắc chắn muốn xóa mặt hàng "${item.code} - ${item.name}" khỏi báo cáo?`,
+                () => {
+                    inventoryData = inventoryData.filter(i => i.id !== id);
+                    saveData();
+                    refreshDashboard();
+                    showToast(`Đã xóa mặt hàng ${item.code}`, 'success');
+                }
+            );
+        }
+
+        function openClearConfirmModal() {
+            if (inventoryData.length === 0) {
+                showToast('Danh sách hiện đang trống.', 'info');
+                return;
+            }
+            openConfirmModal(
+                'Xóa toàn bộ dữ liệu',
+                'Hành động này sẽ xóa sạch toàn bộ danh sách hàng hóa hiện tại trên bảng. Bạn có chắc chắn muốn tiếp tục?',
+                () => {
+                    inventoryData = [];
+                    saveData();
+                    refreshDashboard();
+                    showToast('Đã xóa toàn bộ dữ liệu kho.', 'success');
+                }
+            );
+        }
+
+        function resetToSampleData() {
+            openConfirmModal(
+                'Khôi phục dữ liệu mẫu',
+                'Dữ liệu hiện tại sẽ được thay thế bằng bộ 7 mặt hàng mẫu ban đầu. Tiếp tục?',
+                () => {
+                    inventoryData = DEFAULT_SAMPLE_DATA.map(normalizeItemObject);
+                    saveData();
+                    refreshDashboard();
+                    showToast('Đã khôi phục dữ liệu mẫu thành công!', 'success');
+                }
+            );
+        }
+
+        // --- 9. IN BIỂU MẪU DASHBOARD (PRINT FORM A4) ---
+        function printDashboardForm() {
+            syncCompanyInfoUI();
+            const now = new Date();
+            const dateStr = `Ngày ${String(now.getDate()).padStart(2, '0')} tháng ${String(now.getMonth() + 1).padStart(2, '0')} năm ${now.getFullYear()} - Lúc ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            const dateEl = document.getElementById('print-report-date');
+            if (dateEl) dateEl.textContent = `Thời điểm lập biểu: ${dateStr}`;
+
+            syncChartsToPrintImages();
+
+            setTimeout(() => {
+                window.print();
+            }, 120);
+        }
+
+        // --- 10. XỬ LÝ EXCEL (SHEETJS AN TOÀN) ---
+        function ensureXLSXReady() {
+            if (typeof XLSX === 'undefined') {
+                showToast('Thư viện SheetJS (XLSX) chưa tải xong hoặc bị chặn mạng. Vui lòng thử lại sau ít giây!', 'error');
+                return false;
+            }
+            return true;
+        }
+
+        function downloadSampleExcel() {
+            if (!ensureXLSXReady()) return;
+            try {
+                const sampleRows = DEFAULT_SAMPLE_DATA.map(item => ({
+                    'Mã hàng': item.code,
+                    'Tên hàng': item.name,
+                    'Nhóm hàng': item.category,
+                    'ĐVT': item.unit,
+                    'Tồn đầu SL': item.opening,
+                    'Tồn đầu Thành tiền': item.openingValue,
+                    'Nhập SL': item.importQty,
+                    'Nhập Thành tiền': item.importValue,
+                    'Xuất SL': item.exportQty,
+                    'Xuất Thành tiền': item.exportValue,
+                    'Tồn cuối SL': item.closing,
+                    'Tồn cuối Thành tiền': item.closingValue,
+                    'Tồn tối thiểu': item.minStock
+                }));
+
+                const worksheet = XLSX.utils.json_to_sheet(sampleRows);
+                worksheet['!cols'] = [
+                    { wch: 12 }, { wch: 38 }, { wch: 20 }, { wch: 10 },
+                    { wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 18 },
+                    { wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 18 }, { wch: 14 }
+                ];
+
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Mau_Xuat_Nhap_Ton');
+                XLSX.writeFile(workbook, 'Mau_Xuat_Nhap_Ton.xlsx');
+                showToast('Đã tải xuống file Mau_Xuat_Nhap_Ton.xlsx', 'success');
+            } catch (err) {
+                console.error(err);
+                showToast('Không thể tạo file Excel mẫu.', 'error');
+            }
+        }
+
+        function exportDetailReportExcel() {
+            if (!ensureXLSXReady()) return;
+            if (inventoryData.length === 0) {
+                showToast('Không có dữ liệu để xuất báo cáo!', 'error');
+                return;
+            }
+
+            try {
+                const items = inventoryData.map(normalizeItemObject);
+                const now = new Date();
+                const dateFormatted = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+
+                let sumOpenQty = 0, sumOpenVal = 0;
+                let sumImpQty = 0, sumImpVal = 0;
+                let sumExpQty = 0, sumExpVal = 0;
+                let sumCloseQty = 0, sumCloseVal = 0;
+
+                const aoa = [
+                    [`ĐƠN VỊ: ${(companyInfo.name || '').toUpperCase()}`, '', '', '', '', '', `MST: ${companyInfo.mst || ''}`],
+                    [`Địa chỉ: ${companyInfo.address || ''}`, '', '', '', '', '', `Kỳ báo cáo: ${companyInfo.period || ''}`],
+                    [],
+                    ['BÁO CÁO CHI TIẾT XUẤT - NHẬP - TỒN KHO'],
+                    [`Ngày lập báo cáo: ${dateFormatted}`],
+                    [],
+                    [
+                        'STT', 'Mã hàng', 'Tên hàng', 'Nhóm hàng', 'ĐVT',
+                        'Tồn đầu SL', 'Tồn đầu Thành tiền',
+                        'Nhập SL', 'Nhập Thành tiền',
+                        'Xuất SL', 'Xuất Thành tiền',
+                        'Tồn cuối SL', 'Tồn cuối Thành tiền',
+                        'Tồn tối thiểu'
+                    ]
+                ];
+
+                items.forEach((item, idx) => {
+                    sumOpenQty += item.opening;
+                    sumOpenVal += item.openingValue;
+                    sumImpQty += item.importQty;
+                    sumImpVal += item.importValue;
+                    sumExpQty += item.exportQty;
+                    sumExpVal += item.exportValue;
+                    sumCloseQty += item.closing;
+                    sumCloseVal += item.closingValue;
+
+                    aoa.push([
+                        idx + 1, item.code, item.name, item.category, item.unit,
+                        item.opening, item.openingValue,
+                        item.importQty, item.importValue,
+                        item.exportQty, item.exportValue,
+                        item.closing, item.closingValue,
+                        item.minStock
+                    ]);
+                });
+
+                aoa.push([
+                    '', '', 'TỔNG CỘNG', '', '',
+                    sumOpenQty, sumOpenVal,
+                    sumImpQty, sumImpVal,
+                    sumExpQty, sumExpVal,
+                    sumCloseQty, sumCloseVal,
+                    ''
+                ]);
+
+                const ws = XLSX.utils.aoa_to_sheet(aoa);
+                ws['!cols'] = [
+                    { wch: 6 }, { wch: 12 }, { wch: 38 }, { wch: 20 }, { wch: 10 },
+                    { wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 18 },
+                    { wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 18 }, { wch: 14 }
+                ];
+                ws['!merges'] = [
+                    { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } },
+                    { s: { r: 0, c: 6 }, e: { r: 0, c: 13 } },
+                    { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } },
+                    { s: { r: 1, c: 6 }, e: { r: 1, c: 13 } },
+                    { s: { r: 3, c: 0 }, e: { r: 3, c: 13 } }
+                ];
+
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'BaoCao_ChiTiet_XNT');
+                XLSX.writeFile(wb, `Bao_Cao_Chi_Tiet_XNT_${now.toISOString().slice(0, 10)}.xlsx`);
+                showToast('Đã xuất file báo cáo chi tiết Excel kèm dòng Tổng cộng!', 'success');
+            } catch (err) {
+                console.error(err);
+                showToast('Có lỗi xảy ra khi xuất báo cáo Excel.', 'error');
+            }
+        }
+
+        function exportDashboardExcel() {
+            if (!ensureXLSXReady()) return;
+            if (inventoryData.length === 0) {
+                showToast('Không có dữ liệu để xuất Dashboard Excel!', 'error');
+                return;
+            }
+
+            try {
+                const items = inventoryData.map(normalizeItemObject);
+                const now = new Date();
+                const dateFormatted = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+
+                let sumOpenQty = 0, sumOpenVal = 0;
+                let sumImpQty = 0, sumImpVal = 0;
+                let sumExpQty = 0, sumExpVal = 0;
+                let sumCloseQty = 0, sumCloseVal = 0;
+
+                const groupMap = new Map();
+
+                items.forEach(item => {
+                    sumOpenQty += item.opening;
+                    sumOpenVal += item.openingValue;
+                    sumImpQty += item.importQty;
+                    sumImpVal += item.importValue;
+                    sumExpQty += item.exportQty;
+                    sumExpVal += item.exportValue;
+                    sumCloseQty += item.closing;
+                    sumCloseVal += item.closingValue;
+
+                    const cat = item.category || 'Khác';
+                    if (!groupMap.has(cat)) {
+                        groupMap.set(cat, { skuCount: 0, openVal: 0, impVal: 0, expVal: 0, closeQty: 0, closeVal: 0 });
+                    }
+                    const g = groupMap.get(cat);
+                    g.skuCount += 1;
+                    g.openVal += item.openingValue;
+                    g.impVal += item.importValue;
+                    g.expVal += item.exportValue;
+                    g.closeQty += item.closing;
+                    g.closeVal += item.closingValue;
+                });
+
+                // --- SHEET 1: DASHBOARD TỔNG HỢP ---
+                const aoaDashboard = [
+                    [`ĐƠN VỊ: ${(companyInfo.name || '').toUpperCase()}`, '', '', '', '', `MST: ${companyInfo.mst || ''}`],
+                    [`Địa chỉ: ${companyInfo.address || ''}`, '', '', '', '', `Liên hệ: ${companyInfo.contact || ''}`],
+                    [],
+                    ['BÁO CÁO DASHBOARD TỔNG HỢP XUẤT - NHẬP - TỒN KHO'],
+                    [`Kỳ báo cáo: ${companyInfo.period || ''}`, '', `Ngày xuất báo cáo: ${dateFormatted}`, '', `Tổng danh mục SKU: ${items.length} mặt hàng`],
+                    [],
+                    ['I. CHỈ SỐ TỔNG HỢP TOÀN KHO (KPI)'],
+                    ['Chỉ tiêu', 'Tổng Số Lượng', 'Tổng Thành Tiền (VNĐ)', 'Ghi chú'],
+                    ['1. Tồn đầu kỳ', sumOpenQty, sumOpenVal, 'Số dư đầu kỳ báo cáo'],
+                    ['2. Nhập trong kỳ', sumImpQty, sumImpVal, 'Tổng phát sinh nhập kho'],
+                    ['3. Xuất trong kỳ', sumExpQty, sumExpVal, 'Tổng phát sinh xuất kho'],
+                    ['4. Tồn cuối kỳ', sumCloseQty, sumCloseVal, 'Số dư cuối kỳ báo cáo'],
+                    [],
+                    ['II. PHÂN TÍCH CƠ CẤU TỒN KHO THEO NHÓM HÀNG'],
+                    ['STT', 'Nhóm hàng', 'Số mã hàng', 'Giá trị Tồn đầu (₫)', 'Giá trị Nhập (₫)', 'Giá trị Xuất (₫)', 'SL Tồn cuối', 'Giá trị Tồn cuối (₫)', 'Tỷ trọng tồn cuối (%)']
+                ];
+
+                let groupIdx = 1;
+                groupMap.forEach((val, catName) => {
+                    const ratio = sumCloseVal > 0 ? +((val.closeVal / sumCloseVal) * 100).toFixed(2) : 0;
+                    aoaDashboard.push([
+                        groupIdx++,
+                        catName,
+                        val.skuCount,
+                        val.openVal,
+                        val.impVal,
+                        val.expVal,
+                        val.closeQty,
+                        val.closeVal,
+                        ratio
+                    ]);
+                });
+
+                aoaDashboard.push([
+                    '', 'TỔNG CỘNG', items.length, sumOpenVal, sumImpVal, sumExpVal, sumCloseQty, sumCloseVal, 100
+                ]);
+
+                aoaDashboard.push([]);
+                aoaDashboard.push(['III. CẢNH BÁO TỒN KHO & TOP MẶT HÀNG TỒN CUỐI']);
+                aoaDashboard.push(['Hạng', 'Mã hàng', 'Tên hàng', 'Nhóm hàng', 'SL Tồn cuối', 'Tồn tối thiểu', 'Giá trị Tồn cuối (₫)', 'Trạng thái cảnh báo']);
+
+                const sortedTop = [...items].sort((a, b) => b.closingValue - a.closingValue);
+                sortedTop.forEach((item, idx) => {
+                    let statusText = 'Ổn định';
+                    if (item.closing < 0) statusText = 'CẢNH BÁO: Âm kho';
+                    else if (item.closing <= 0) statusText = 'CẢNH BÁO: Hết hàng';
+                    else if (item.closing <= item.minStock) statusText = 'CẢNH BÁO: Sắp hết hàng';
+
+                    aoaDashboard.push([
+                        idx + 1,
+                        item.code,
+                        item.name,
+                        item.category,
+                        item.closing,
+                        item.minStock,
+                        item.closingValue,
+                        statusText
+                    ]);
+                });
+
+                const wsDashboard = XLSX.utils.aoa_to_sheet(aoaDashboard);
+                wsDashboard['!cols'] = [
+                    { wch: 24 }, { wch: 26 }, { wch: 34 }, { wch: 22 },
+                    { wch: 20 }, { wch: 20 }, { wch: 22 }, { wch: 22 }, { wch: 22 }
+                ];
+                wsDashboard['!merges'] = [
+                    { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },
+                    { s: { r: 0, c: 5 }, e: { r: 0, c: 8 } },
+                    { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } },
+                    { s: { r: 1, c: 5 }, e: { r: 1, c: 8 } },
+                    { s: { r: 3, c: 0 }, e: { r: 3, c: 8 } },
+                    { s: { r: 6, c: 0 }, e: { r: 6, c: 8 } },
+                    { s: { r: 13, c: 0 }, e: { r: 13, c: 8 } }
+                ];
+
+                // --- SHEET 2: BẢNG CHI TIẾT XUẤT - NHẬP - TỒN ---
+                const aoaDetail = [
+                    [`ĐƠN VỊ: ${(companyInfo.name || '').toUpperCase()}`, '', '', '', '', '', '', `MST: ${companyInfo.mst || ''}`],
+                    [`Địa chỉ: ${companyInfo.address || ''}`, '', '', '', '', '', '', `Kỳ báo cáo: ${companyInfo.period || ''}`],
+                    [],
+                    ['BẢNG CHI TIẾT SỐ LƯỢNG & THÀNH TIỀN XUẤT - NHẬP - TỒN KHO'],
+                    [`Ngày lập: ${dateFormatted}`],
+                    [],
+                    [
+                        'STT', 'Mã hàng', 'Tên hàng', 'Nhóm hàng', 'ĐVT',
+                        'Tồn đầu SL', 'Tồn đầu Thành tiền',
+                        'Nhập SL', 'Nhập Thành tiền',
+                        'Xuất SL', 'Xuất Thành tiền',
+                        'Tồn cuối SL', 'Tồn cuối Thành tiền',
+                        'Tồn tối thiểu'
+                    ]
+                ];
+
+                items.forEach((item, idx) => {
+                    aoaDetail.push([
+                        idx + 1,
+                        item.code,
+                        item.name,
+                        item.category,
+                        item.unit,
+                        item.opening,
+                        item.openingValue,
+                        item.importQty,
+                        item.importValue,
+                        item.exportQty,
+                        item.exportValue,
+                        item.closing,
+                        item.closingValue,
+                        item.minStock
+                    ]);
+                });
+
+                aoaDetail.push([
+                    '', '', 'TỔNG CỘNG TOÀN BỘ', '', '',
+                    sumOpenQty, sumOpenVal,
+                    sumImpQty, sumImpVal,
+                    sumExpQty, sumExpVal,
+                    sumCloseQty, sumCloseVal,
+                    ''
+                ]);
+
+                aoaDetail.push([]);
+                aoaDetail.push(['', 'Người lập biểu', '', '', 'Thủ kho', '', '', 'Kế toán trưởng', '', '', '', 'Giám đốc']);
+                aoaDetail.push([]);
+                aoaDetail.push([]);
+                aoaDetail.push(['', companyInfo.preparer || '', '', '', companyInfo.storekeeper || '', '', '', companyInfo.accountant || '', '', '', '', companyInfo.director || '']);
+
+                const wsDetail = XLSX.utils.aoa_to_sheet(aoaDetail);
+                wsDetail['!cols'] = [
+                    { wch: 6 }, { wch: 12 }, { wch: 38 }, { wch: 20 }, { wch: 10 },
+                    { wch: 12 }, { wch: 20 }, { wch: 12 }, { wch: 20 },
+                    { wch: 12 }, { wch: 20 }, { wch: 12 }, { wch: 22 }, { wch: 14 }
+                ];
+                wsDetail['!merges'] = [
+                    { s: { r: 0, c: 0 }, e: { r: 0, c: 6 } },
+                    { s: { r: 0, c: 7 }, e: { r: 0, c: 13 } },
+                    { s: { r: 1, c: 0 }, e: { r: 1, c: 6 } },
+                    { s: { r: 1, c: 7 }, e: { r: 1, c: 13 } },
+                    { s: { r: 3, c: 0 }, e: { r: 3, c: 13 } }
+                ];
+
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, wsDashboard, 'Dashboard_TongHop');
+                XLSX.utils.book_append_sheet(workbook, wsDetail, 'ChiTiet_XuatNhapTon');
+
+                const todayIso = now.toISOString().slice(0, 10);
+                XLSX.writeFile(workbook, `Dashboard_Xuat_Nhap_Ton_${todayIso}.xlsx`);
+                showToast('Đã xuất nguyên Dashboard & Bảng chi tiết ra Excel (2 Sheet)!', 'success');
+            } catch (err) {
+                console.error(err);
+                showToast('Có lỗi xảy ra khi xuất Dashboard Excel.', 'error');
+            }
+        }
+
+        function openImportModal() {
+            const fileInput = document.getElementById('excel-file-input');
+            if (fileInput) fileInput.value = '';
+            const modal = document.getElementById('import-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            safeRenderIcons();
+        }
+
+        function closeImportModal() {
+            const modal = document.getElementById('import-modal');
+            if (!modal) return;
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function setupExcelDropZone() {
+            const dropZone = document.getElementById('drop-zone');
+            if (!dropZone) return;
+            ['dragenter', 'dragover'].forEach(evtName => {
+                dropZone.addEventListener(evtName, (e) => {
+                    e.preventDefault();
+                    dropZone.classList.add('border-brand-500', 'bg-brand-50/50');
+                });
+            });
+            ['dragleave', 'drop'].forEach(evtName => {
+                dropZone.addEventListener(evtName, (e) => {
+                    e.preventDefault();
+                    dropZone.classList.remove('border-brand-500', 'bg-brand-50/50');
+                });
+            });
+            dropZone.addEventListener('drop', (e) => {
+                const files = e.dataTransfer && e.dataTransfer.files;
+                if (files && files.length > 0) {
+                    processExcelFile(files[0]);
+                }
+            });
+        }
+
+        function handleExcelUpload(event) {
+            const file = event.target && event.target.files && event.target.files[0];
+            if (file) {
+                processExcelFile(file);
+            }
+        }
+
+        function processExcelFile(file) {
+            if (!ensureXLSXReady()) return;
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const targetSheetName = workbook.SheetNames.includes('ChiTiet_XuatNhapTon')
+                        ? 'ChiTiet_XuatNhapTon'
+                        : workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[targetSheetName];
+                    const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+                    if (!rawRows || rawRows.length === 0) {
+                        showToast('File Excel không có dữ liệu hợp lệ!', 'error');
+                        return;
+                    }
+
+                    const parsedItems = [];
+                    rawRows.forEach((row, idx) => {
+                        const r = {};
+                        Object.keys(row).forEach(k => {
+                            r[String(k).trim().toLowerCase()] = row[k];
+                        });
+
+                        const code = String(r['mã hàng'] || r['ma hang'] || r['code'] || `SP${idx + 1}`).trim().toUpperCase();
+                        const name = String(r['tên hàng'] || r['tên hàng hóa'] || r['ten hang hoa'] || r['ten hang'] || r['name'] || '').trim();
+                        if (!name || name.toUpperCase() === 'TỔNG CỘNG' || name.toUpperCase() === 'TỔNG CỘNG TOÀN BỘ') return;
+
+                        const unit = String(r['đvt'] || r['đơn vị tính'] || r['don vi tinh'] || r['unit'] || 'Cái').trim();
+                        const category = String(r['nhóm hàng'] || r['nhom hang'] || r['category'] || 'Khác').trim();
+                        const minStock = r['tồn tối thiểu'] !== undefined && r['tồn tối thiểu'] !== '' ? Math.max(0, parseFloat(r['tồn tối thiểu']) || 0) : 10;
+                        const price = parseFloat(r['đơn giá'] || r['don gia'] || r['price'] || 0) || 0;
+
+                        const opening = parseFloat(r['tồn đầu sl'] || r['sl tồn đầu'] || r['tồn đầu kỳ'] || r['tồn đầu'] || 0) || 0;
+                        const openingValue = r['tồn đầu thành tiền'] !== undefined && r['tồn đầu thành tiền'] !== ''
+                            ? (parseFloat(r['tồn đầu thành tiền']) || 0)
+                            : (r['tt tồn đầu'] !== undefined && r['tt tồn đầu'] !== '' ? (parseFloat(r['tt tồn đầu']) || 0) : opening * price);
+
+                        const importQty = parseFloat(r['nhập sl'] || r['sl nhập'] || r['nhập trong kỳ'] || r['nhập'] || 0) || 0;
+                        const importValue = r['nhập thành tiền'] !== undefined && r['nhập thành tiền'] !== ''
+                            ? (parseFloat(r['nhập thành tiền']) || 0)
+                            : (r['tt nhập'] !== undefined && r['tt nhập'] !== '' ? (parseFloat(r['tt nhập']) || 0) : importQty * price);
+
+                        const exportQty = parseFloat(r['xuất sl'] || r['sl xuất'] || r['xuất trong kỳ'] || r['xuất'] || 0) || 0;
+                        const exportValue = r['xuất thành tiền'] !== undefined && r['xuất thành tiền'] !== ''
+                            ? (parseFloat(r['xuất thành tiền']) || 0)
+                            : (r['tt xuất'] !== undefined && r['tt xuất'] !== '' ? (parseFloat(r['tt xuất']) || 0) : exportQty * price);
+
+                        const closing = r['tồn cuối sl'] !== undefined && r['tồn cuối sl'] !== ''
+                            ? (parseFloat(r['tồn cuối sl']) || 0)
+                            : (r['sl tồn cuối'] !== undefined && r['sl tồn cuối'] !== '' ? (parseFloat(r['sl tồn cuối']) || 0) : (opening + importQty - exportQty));
+
+                        const closingValue = r['tồn cuối thành tiền'] !== undefined && r['tồn cuối thành tiền'] !== ''
+                            ? (parseFloat(r['tồn cuối thành tiền']) || 0)
+                            : (r['tt tồn cuối'] !== undefined && r['tt tồn cuối'] !== '' ? (parseFloat(r['tt tồn cuối']) || 0) : (openingValue + importValue - exportValue));
+
+                        parsedItems.push({
+                            id: Date.now().toString() + '_' + idx,
+                            code, name, unit, category, minStock, price,
+                            opening, openingValue,
+                            importQty, importValue,
+                            exportQty, exportValue,
+                            closing, closingValue
+                        });
+                    });
+
+                    if (parsedItems.length === 0) {
+                        showToast('Không đọc được dòng hàng hóa nào. Vui lòng kiểm tra tiêu đề cột theo file mẫu!', 'error');
+                        return;
+                    }
+
+                    const modeInput = document.querySelector('input[name="import-mode"]:checked');
+                    const mode = modeInput ? modeInput.value : 'replace';
+
+                    if (mode === 'replace') {
+                        inventoryData = parsedItems;
+                    } else {
+                        parsedItems.forEach(newItem => {
+                            const existingIdx = inventoryData.findIndex(i => i.code.toUpperCase() === newItem.code);
+                            if (existingIdx !== -1) {
+                                inventoryData[existingIdx] = { ...newItem, id: inventoryData[existingIdx].id };
+                            } else {
+                                inventoryData.push(newItem);
+                            }
+                        });
+                    }
+
+                    saveData();
+                    closeImportModal();
+                    refreshDashboard();
+                    showToast(`Đã nhập thành công ${parsedItems.length} mặt hàng từ Excel!`, 'success');
+                } catch (error) {
+                    console.error('Lỗi đọc file Excel:', error);
+                    showToast('File Excel bị lỗi hoặc không đúng định dạng!', 'error');
+                }
+            };
+            reader.onerror = function () {
+                showToast('Không thể đọc tệp đã chọn.', 'error');
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // --- 11. TIỆN ÍCH UI & SỰ KIỆN MODAL / ESC ---
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            const toast = document.createElement('div');
+
+            const styles = {
+                success: 'bg-emerald-600 text-white border-emerald-700',
+                error: 'bg-rose-600 text-white border-rose-700',
+                info: 'bg-slate-800 text-white border-slate-900'
+            };
+
+            const icons = {
+                success: 'check-circle-2',
+                error: 'alert-circle',
+                info: 'info'
+            };
+
+            toast.className = `pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg border text-sm font-medium transition-all duration-300 transform translate-y-0 opacity-100 ${styles[type] || styles.info}`;
+            toast.innerHTML = `
+                <i data-lucide="${icons[type] || 'info'}" class="w-4 h-4 shrink-0"></i>
+                <span class="flex-1">${escapeHtml(message)}</span>
+            `;
+
+            container.appendChild(toast);
+            safeRenderIcons();
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', '-translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3200);
+        }
+
+        let pendingConfirmCallback = null;
+        function openConfirmModal(title, message, onConfirm) {
+            document.getElementById('confirm-title').textContent = title;
+            document.getElementById('confirm-message').textContent = message;
+            pendingConfirmCallback = onConfirm;
+
+            const modal = document.getElementById('confirm-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            safeRenderIcons();
+        }
+
+        function closeConfirmModal() {
+            const modal = document.getElementById('confirm-modal');
+            if (!modal) return;
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            pendingConfirmCallback = null;
+        }
+
+        function escapeHtml(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function setupModalBackdropAndEsc() {
+            const modalConfigs = [
+                { id: 'item-modal', closeFn: closeItemModal },
+                { id: 'import-modal', closeFn: closeImportModal },
+                { id: 'confirm-modal', closeFn: closeConfirmModal },
+                { id: 'company-modal', closeFn: closeCompanyModal }
+            ];
+
+            modalConfigs.forEach(({ id, closeFn }) => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('click', (e) => {
+                        if (e.target === el) closeFn();
+                    });
+                }
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    closeConfirmModal();
+                    closeItemModal();
+                    closeImportModal();
+                    closeCompanyModal();
+                }
+            });
+        }
+
+        // --- KHỞI CHẠY ỨNG DỤNG AN TOÀN ---
+        window.addEventListener('DOMContentLoaded', () => {
+            const confirmBtn = document.getElementById('confirm-action-btn');
+            if (confirmBtn) {
+                confirmBtn.addEventListener('click', () => {
+                    if (typeof pendingConfirmCallback === 'function') {
+                        pendingConfirmCallback();
+                    }
+                    closeConfirmModal();
+                });
+            }
+
+            setupExcelDropZone();
+            setupModalBackdropAndEsc();
+            loadCompanyInfo();
+            syncCompanyInfoUI();
+            loadData();
+            refreshDashboard();
+        });
+    </script>
+</body>
+</html>
